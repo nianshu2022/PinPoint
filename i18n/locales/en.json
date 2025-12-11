@@ -403,6 +403,10 @@
       "nov": "Nov",
       "dec": "Dec"
     },
+    "actions": {
+      "setNow": "Set to now",
+      "clear": "Clear"
+    },
     "days": {
       "sun": "Sun",
       "mon": "Mon",
@@ -491,7 +495,8 @@
       "toolbar": {
         "title": "Photo Management",
         "filter": "Filter",
-        "refresh": "Refresh"
+        "refresh": "Refresh",
+        "searchPlaceholder": "Search title, tags, camera..."
       },
       "photoFilter": {
         "all": "All Photos",

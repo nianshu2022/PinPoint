@@ -128,7 +128,14 @@ export default defineNuxtConfig({
         mode: 'skip' as 'warn' | 'block' | 'skip',
       },
     },
-    allowInsecureCookie: false,
+    session: {
+      maxAge: 60 * 60 * 24 * 7,
+      cookie: {
+        sameSite: 'lax',
+        secure: false, // Force secure to false by default to support IP access
+      }
+    },
+    allowInsecureCookie: true,
   },
 
   nitro: {
@@ -210,7 +217,16 @@ export default defineNuxtConfig({
     providers: {
       google: false,
       googleicons: false,
+      bunny: false, // Disable bunny fonts as well
     },
+    // Prevent build failure on font download error
+    experimental: {
+      processCSSVariables: false,
+    },
+    defaults: {
+      weights: [400, 700],
+      styles: ['normal', 'italic'],
+    }
   },
 
   dayjs: {

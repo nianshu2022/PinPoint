@@ -193,7 +193,34 @@ const shareToLinkedIn = () => {
 // Copy functions
 const copyLink = async () => {
   try {
-    await navigator.clipboard.writeText(shareTextAndUrl.value)
+    const textToCopy = shareTextAndUrl.value
+    // Prefer navigator.clipboard API if available
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(textToCopy)
+    } else {
+      // Fallback for browsers/contexts without clipboard API access (e.g. non-HTTPS)
+      const textArea = document.createElement('textarea')
+      textArea.value = textToCopy
+      
+      // Ensure element is not visible but part of DOM
+      textArea.style.position = 'fixed'
+      textArea.style.left = '-9999px'
+      textArea.style.top = '0'
+      document.body.appendChild(textArea)
+      
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        const successful = document.execCommand('copy')
+        if (!successful) {
+          throw new Error('Fallback copy failed')
+        }
+      } finally {
+        document.body.removeChild(textArea)
+      }
+    }
+
     toast.add({
       title: $t('ui.action.share.success.linkCopied'),
       color: 'success',
@@ -201,6 +228,7 @@ const copyLink = async () => {
       duration: 3000,
     })
   } catch (error) {
+    console.error('Copy failed', error)
     toast.add({
       title: $t('ui.action.share.error.linkCopyFailed'),
       description: (error as Error)?.message || 'Unknown error',

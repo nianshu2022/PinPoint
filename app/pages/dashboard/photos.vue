@@ -38,7 +38,7 @@ const MAX_FILE_SIZE = 256 // in MB
 const dayjs = useDayjs()
 
 const { status, refresh } = usePhotos()
-const { filteredPhotos, selectedCounts, hasActiveFilters } = usePhotoFilters()
+const { filteredPhotos, selectedCounts, hasActiveFilters, activeFilters } = usePhotoFilters()
 
 const totalSelectedFilters = computed(() => {
   return Object.values(selectedCounts.value).reduce(
@@ -2091,6 +2091,26 @@ onUnmounted(() => {
           </div>
 
           <div class="flex items-center gap-2">
+            <!-- 搜索框 -->
+            <UInput
+              v-model="activeFilters.search"
+              icon="tabler:search"
+              :placeholder="$t('dashboard.photos.toolbar.searchPlaceholder')"
+              size="sm"
+              class="w-full sm:w-64"
+              :ui="{ icon: { trailing: { pointer: '' } } }"
+            >
+              <template v-if="activeFilters.search" #trailing>
+                <UButton
+                  color="gray"
+                  variant="link"
+                  icon="tabler:x"
+                  :padded="false"
+                  @click="activeFilters.search = ''"
+                />
+              </template>
+            </UInput>
+
             <UPopover>
               <UTooltip :text="$t('ui.action.filter.tooltip')">
                 <UChip
@@ -2312,7 +2332,7 @@ onUnmounted(() => {
 
         <UModal v-model:open="isEditModalOpen">
           <template #content>
-            <div class="p-6 space-y-6">
+            <div class="p-6 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
               <div class="space-y-1">
                 <h2
                   class="text-lg font-semibold text-neutral-800 dark:text-neutral-100"
@@ -2375,12 +2395,34 @@ onUnmounted(() => {
                   :label="$t('dashboard.photos.editModal.fields.dateTaken')"
                   name="dateTaken"
                 >
-                  <UInput
-                    v-model="editFormState.dateTaken"
-                    type="datetime-local"
-                    class="w-full"
-                    :placeholder="$t('dashboard.photos.editModal.fields.dateTakenPlaceholder')"
-                  />
+                  <div class="flex gap-2 items-center">
+                    <UInput
+                      v-model="editFormState.dateTaken"
+                      type="datetime-local"
+                      class="w-full"
+                      icon="tabler:calendar"
+                      :placeholder="$t('dashboard.photos.editModal.fields.dateTakenPlaceholder')"
+                    />
+                    <UTooltip :text="$t('common.actions.setNow')">
+                      <UButton
+                        icon="tabler:clock"
+                        color="neutral"
+                        variant="soft"
+                        size="sm"
+                        @click="editFormState.dateTaken = dayjs().format('YYYY-MM-DDTHH:mm')"
+                      />
+                    </UTooltip>
+                    <UTooltip :text="$t('common.actions.clear')">
+                      <UButton
+                        icon="tabler:x"
+                        color="neutral"
+                        variant="ghost"
+                        size="sm"
+                        :disabled="!editFormState.dateTaken"
+                        @click="editFormState.dateTaken = null"
+                      />
+                    </UTooltip>
+                  </div>
                 </UFormField>
 
                 <div class="flex items-center justify-between space-y-2">

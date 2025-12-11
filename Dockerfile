@@ -1,6 +1,9 @@
 FROM node:22-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+# Use npmmirror for better connectivity in China
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 RUN corepack enable
 
 FROM base AS deps
@@ -18,13 +21,20 @@ RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build:deps
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 FROM node:22-alpine AS runtime
-RUN apk update && apk add --no-cache perl exiftool
+# perl is required for exiftool-vendored
+RUN apk update && apk add --no-cache perl
 WORKDIR /app
 
 COPY --from=build /usr/src/app/.output ./.output
 COPY --from=build /usr/src/app/packages/webgl-image/dist ./packages/webgl-image/dist
 COPY --from=build /usr/src/app/scripts ./scripts
 COPY --from=build /usr/src/app/server/database/migrations ./server/database/migrations
+
+# Install only necessary runtime dependencies
+# Clean npm cache to reduce image size
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install drizzle-orm@^0.44.4 better-sqlite3@^12.2.0 sharp@0.34.4 exiftool-vendored@^30.3.0 && \
+    npm cache clean --force
 
 EXPOSE 3000
 VOLUME ["/app/data"]

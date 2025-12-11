@@ -1,5 +1,6 @@
 services:
   withyou:
+    image: withyou:latest
     build: .
     container_name: withyou
     restart: unless-stopped

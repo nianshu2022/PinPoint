@@ -405,6 +405,10 @@
       "nov": "十一月",
       "dec": "十二月"
     },
+    "actions": {
+      "setNow": "设为当前时间",
+      "clear": "清除"
+    },
     "days": {
       "sun": "日",
       "mon": "一",
@@ -493,7 +497,8 @@
       "toolbar": {
         "title": "照片管理",
         "filter": "筛选",
-        "refresh": "刷新"
+        "refresh": "刷新",
+        "searchPlaceholder": "搜索标题、标签、相机..."
       },
       "photoFilter": {
         "all": "全部照片",
