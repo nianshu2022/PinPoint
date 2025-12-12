@@ -552,7 +552,8 @@
         "selected": "{count} / {total} 行已选择",
         "batchReprocess": "重新处理",
         "batchDownload": "批量下载",
-        "batchDelete": "批量删除"
+        "batchDelete": "批量删除",
+        "batchEdit": "批量编辑"
       },
       "slideover": {
         "title": "上传照片",
@@ -667,6 +668,7 @@
           "tags": "标签",
           "tagsHint": "按下 Enter 键添加每个标签。",
           "location": "拍摄位置",
+          "locationInfo": "位置信息",
           "locationHint": "点击地图选择或更新拍摄位置。",
           "clearLocation": "清除位置",
           "coordinates": "坐标",
@@ -681,6 +683,10 @@
           "cancel": "取消",
           "save": "保存更改"
         }
+      },
+      "batchEditModal": {
+        "title": "批量编辑照片",
+        "description": "正在编辑 {count} 张照片。只有您修改的字段才会被更新，留空的字段将保持原样。"
       }
     },
     "albums": {
@@ -697,6 +703,7 @@
         "descriptionPlaceholder": "输入相簿描述（可选）",
         "coverPhoto": "相簿封面",
         "addCoverPhoto": "添加封面照片",
+        "createdAt": "创建时间",
         "selectPhotos": "选择照片",
         "editPhotos": "修改照片选择",
         "selectedCount": "已选择 {count} 张照片",

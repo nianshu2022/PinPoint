@@ -1,5 +1,8 @@
 import type { ConsolaInstance } from 'consola'
 import path from 'path'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { exiftool } from 'exiftool-vendored'
 import { asc, desc, eq, sql } from 'drizzle-orm'
 import type {
   NewPipelineQueueItem,
@@ -626,6 +629,117 @@ export class QueueManager {
           throw error
         }
       },
+      cleanupStorage: async (task: PipelineQueueItem) => {
+        const { id: taskId, payload } = task
+        if (payload.type !== 'cleanup-storage') return
+
+        const { storageKey, thumbnailKey, livePhotoVideoKey } = payload
+        const storageProvider = getStorageManager().getProvider()
+
+        this.logger.info(
+          `[${taskId}:cleanup] Starting cleanup for ${storageKey}`,
+        )
+
+        try {
+          if (storageKey) {
+            await storageProvider.delete(storageKey).catch((e) => {
+              this.logger.warn(`Failed to delete storageKey ${storageKey}`, e)
+            })
+
+            // Try deleting HEIC converted JPEG
+            const ext = path.extname(storageKey).toLowerCase()
+            if (['.heic', '.heif', '.hif'].includes(ext)) {
+              const base = path.basename(storageKey, ext)
+              const dir = path.dirname(storageKey)
+              const jpegKey = path
+                .join(dir, `${base}.jpeg`)
+                .replace(/\\/g, '/')
+              await storageProvider.delete(jpegKey).catch(() => {})
+            }
+          }
+
+          if (thumbnailKey) {
+            await storageProvider.delete(thumbnailKey).catch((e) => {
+              this.logger.warn(
+                `Failed to delete thumbnailKey ${thumbnailKey}`,
+                e,
+              )
+            })
+          }
+
+          if (livePhotoVideoKey) {
+            await storageProvider.delete(livePhotoVideoKey).catch((e) => {
+              this.logger.warn(
+                `Failed to delete livePhotoVideoKey ${livePhotoVideoKey}`,
+                e,
+              )
+            })
+          }
+        } catch (error) {
+          this.logger.error(`[${taskId}:cleanup] Failed`, error)
+          throw error
+        }
+      },
+      writeExif: async (task: PipelineQueueItem) => {
+        const { id: taskId, payload } = task
+        if (payload.type !== 'write-exif') return
+
+        const { photoId, updates } = payload
+        const db = useDB()
+        const storageProvider = getStorageManager().getProvider()
+
+        this.logger.info(
+          `[${taskId}:write-exif] Starting for photo ${photoId}`,
+        )
+
+        const photo = await db
+          .select()
+          .from(tables.photos)
+          .where(eq(tables.photos.id, photoId))
+          .get()
+        if (!photo || !photo.storageKey) {
+          throw new Error('Photo not found or missing storageKey')
+        }
+
+        const tempDir = await mkdtemp(path.join(tmpdir(), 'cframe-exif-'))
+        try {
+          const originalBuffer = await storageProvider.get(photo.storageKey)
+          if (!originalBuffer)
+            throw new Error('Failed to download original file')
+
+          const ext = path.extname(photo.storageKey) || '.jpg'
+          const tempFile = path.join(tempDir, `photo${ext}`)
+          await writeFile(tempFile, originalBuffer)
+
+          await exiftool.write(tempFile, updates, ['-overwrite_original'])
+
+          const updatedBuffer = await readFile(tempFile)
+
+          const prefix =
+            storageProvider.config && 'prefix' in storageProvider.config
+              ? storageProvider.config.prefix
+              : ''
+          const key = photo.storageKey.replace(prefix || '', '')
+          await storageProvider.create(key, updatedBuffer)
+
+          // Re-extract EXIF to update DB with latest metadata
+          const exifData = await extractExifData(updatedBuffer)
+          await db
+            .update(tables.photos)
+            .set({
+              exif: exifData,
+              fileSize: updatedBuffer.length,
+              lastModified: new Date().toISOString(),
+            })
+            .where(eq(tables.photos.id, photoId))
+
+          this.logger.success(
+            `[${taskId}:write-exif] Completed for ${photoId}`,
+          )
+        } finally {
+          await rm(tempDir, { recursive: true, force: true }).catch(() => {})
+        }
+      },
     }
   })()
 
@@ -650,37 +764,54 @@ export class QueueManager {
       try {
         const { type } = task.payload
 
-        switch (type) {
-          case 'live-photo-video':
-            await this.processors.livePhotoDetect(task)
-            break
-          case 'photo':
-            await this.processors.photo(task)
-            break
-          case 'photo-reverse-geocoding':
-            await this.processors.reverseGeocoding(task)
-            break
-          default:
-            throw new Error(`Unknown task type: ${type}`)
+        // 设置任务超时时间
+        const TASK_TIMEOUTS: Record<string, number> = {
+          photo: 10 * 60 * 1000, // 10分钟
+          'live-photo-video': 5 * 60 * 1000, // 5分钟
+          'photo-reverse-geocoding': 2 * 60 * 1000, // 2分钟
+          'cleanup-storage': 2 * 60 * 1000, // 2分钟
+          'write-exif': 5 * 60 * 1000, // 5分钟
         }
+        const timeoutMs = TASK_TIMEOUTS[type] || 5 * 60 * 1000
+        let timeoutId: NodeJS.Timeout
+
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`Task execution timed out after ${timeoutMs}ms`))
+          }, timeoutMs)
+        })
+
+        const processingPromise = (async () => {
+          switch (type) {
+            case 'live-photo-video':
+              await this.processors.livePhotoDetect(task)
+              break
+            case 'photo':
+              await this.processors.photo(task)
+              break
+            case 'photo-reverse-geocoding':
+              await this.processors.reverseGeocoding(task)
+              break
+            case 'cleanup-storage':
+              await this.processors.cleanupStorage(task)
+              break
+            case 'write-exif':
+              await this.processors.writeExif(task)
+              break
+            default:
+              throw new Error(`Unknown task type: ${type}`)
+          }
+        })()
+
+        await Promise.race([processingPromise, timeoutPromise]).finally(() => {
+          if (timeoutId) clearTimeout(timeoutId)
+        })
 
         await this.markTaskCompleted(task.id)
         this.processedCount++
         this.logger.success(
           `[${this.workerId}] Task ${task.id} processed successfully (Total: ${this.processedCount})`,
         )
-
-        // const result = await this.processTask(task)
-        // if (result) {
-        //   await this.markTaskCompleted(task.id)
-        //   this.processedCount++
-        //   this.logger.success(
-        //     `[${this.workerId}] Task ${task.id} processed successfully (Total: ${this.processedCount})`,
-        //   )
-        // } else {
-        //   await this.markTaskFailed(task.id, 'Processing result is empty')
-        //   this.errorCount++
-        // }
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error)

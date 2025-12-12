@@ -550,7 +550,8 @@
         "selected": "{count} / {total} rows selected",
         "batchReprocess": "Reprocess",
         "batchDownload": "Download",
-        "batchDelete": "Batch Delete"
+        "batchDelete": "Batch Delete",
+        "batchEdit": "Batch Edit"
       },
       "slideover": {
         "title": "Upload Photos",
@@ -665,6 +666,7 @@
           "tags": "Tags",
           "tagsHint": "Press Enter to add each tag.",
           "location": "Location",
+          "locationInfo": "Location Info",
           "locationHint": "Click on the map to set the shooting location.",
           "clearLocation": "Clear location",
           "coordinates": "Coordinates",
@@ -679,6 +681,10 @@
           "cancel": "Cancel",
           "save": "Save changes"
         }
+      },
+      "batchEditModal": {
+        "title": "Batch Edit Photos",
+        "description": "Editing {count} photos. Only fields you modify will be updated. Empty fields will remain unchanged."
       }
     },
     "albums": {
@@ -695,6 +701,7 @@
         "descriptionPlaceholder": "Enter album description (optional)",
         "coverPhoto": "Album Cover",
         "addCoverPhoto": "Add cover photo",
+        "createdAt": "Created At",
         "selectPhotos": "Select Photos",
         "editPhotos": "Edit photo selection",
         "selectedCount": "Selected {count} photos",

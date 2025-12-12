@@ -20,7 +20,7 @@ const currentPhoto = computed(() =>
 )
 
 defineOgImageComponent('Photo', {
-  headline: currentPhoto.value ? 'PHOTO' : 'ChronoFrame',
+  headline: currentPhoto.value ? 'PHOTO' : 'PinPoint',
   title: currentPhoto.value?.title || getSetting('app:title'),
   description: currentPhoto.value
     ? currentPhoto.value.description

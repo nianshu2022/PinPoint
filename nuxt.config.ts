@@ -27,7 +27,17 @@ export default defineNuxtConfig({
     'nuxt-gtag',
   ],
 
-  css: ['~/assets/css/tailwind.css'],
+  css: [
+    '@fontsource/rubik/400.css',
+    '@fontsource/rubik/500.css',
+    '@fontsource/rubik/700.css',
+    '@fontsource/rubik/400-italic.css',
+    '@fontsource/noto-sans-sc/400.css',
+    '@fontsource/noto-sans-sc/500.css',
+    '@fontsource/noto-sans-sc/700.css',
+    '@fontsource/pacifico/400.css',
+    '~/assets/css/tailwind.css',
+  ],
 
   components: [{ path: '~/components/ui', pathPrefix: false }, '~/components'],
 
@@ -38,7 +48,7 @@ export default defineNuxtConfig({
         accessToken: '',
       },
       app: {
-        title: 'WithYou',
+        title: 'PinPoint',
         slogan: '',
         author: '',
         avatarUrl: '',
@@ -218,6 +228,7 @@ export default defineNuxtConfig({
       google: false,
       googleicons: false,
       bunny: false, // Disable bunny fonts as well
+      fontsource: false,
     },
     // Prevent build failure on font download error
     experimental: {

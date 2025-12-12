@@ -56,6 +56,25 @@ const aspectRatio = computed(() => {
   return 1.2
 })
 
+const cleanDescription = computed(() => {
+  const desc = props.photo.description
+  if (!desc) return null
+
+  const trimmed = desc.trim()
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      JSON.parse(trimmed)
+      return null
+    } catch {
+      return desc
+    }
+  }
+  return desc
+})
+
 // Show info overlay only when not playing video or video has finished
 const shouldShowInfoOverlay = computed(() => {
   if (!props.photo.isLivePhoto) return true
@@ -583,10 +602,10 @@ onUnmounted(() => {
               {{ photo.title }}
             </p>
             <p
-              v-if="photo.description"
+              v-if="cleanDescription"
               class="text-xs text-justify opacity-80 line-clamp-2"
             >
-              {{ photo.description }}
+              {{ cleanDescription }}
             </p>
             <p
               v-if="photo.dateTaken || photo.city"

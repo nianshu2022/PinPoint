@@ -39,7 +39,7 @@ export default eventHandler(async (event) => {
       eq(tables.photos.id, tables.albumPhotos.photoId),
     )
     .where(eq(tables.albumPhotos.albumId, albumId))
-    .orderBy(asc(tables.albumPhotos.position))
+    .orderBy(asc(tables.photos.dateTaken))
     .all()
 
   // 验证相册数据完整性

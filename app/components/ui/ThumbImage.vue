@@ -83,7 +83,8 @@ const onError = () => {
 
     <img
       v-if="isElemVisible"
-      loading="lazy"
+      :loading="lazy ? 'lazy' : 'eager'"
+      :decoding="lazy ? 'async' : 'auto'"
       :src="src"
       :alt="alt"
       :class="

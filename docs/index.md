@@ -3,12 +3,12 @@
 layout: home
 
 hero:
-  name: "ChronoFrame"
+  name: "PinPoint"
   text: "Self-hosted Personal Gallery"
   tagline: "Manage photos online with multi-storage backends, LivePhoto, and globe view"
   image:
     src: /logo.png
-    alt: ChronoFrame
+    alt: PinPoint
     style: "filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.7)) drop-shadow(0 0 60px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 100px rgba(168, 85, 247, 0.3)); width: 300px; height: 300px;"
   actions:
     - theme: brand
@@ -16,7 +16,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/HoshinoSuzumi/chronoframe
+      link: https://github.com/nianshu2022/PinPoint
     - theme: alt
       text: View Demo
       link: https://lens.bh8.ga
@@ -45,13 +45,13 @@ features:
 
 ## 🌍 Demo Sites
 
-Here are some well-running ChronoFrame instances built by developers and community members:
+Here are some well-running PinPoint instances built by developers and community members:
 
 - [**TimoYin's Mems**](https://lens.bh8.ga)
 
 ## 💬 Community Support
 
-- **GitHub Issues**: [Report Issues](https://github.com/HoshinoSuzumi/chronoframe/issues)
+- **GitHub Issues**: [Report Issues](https://github.com/nianshu2022/PinPoint/issues)
 - **GitHub Discussions**: [Discussions](https://github.com/HoshinoSuzumi/chronoframe/discussions)
 - **Discord**: [Join Us](https://discord.gg/mDZjCwdQGk)
 

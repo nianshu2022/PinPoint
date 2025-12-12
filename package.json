@@ -1,5 +1,5 @@
 {
-  "name": "withyou",
+  "name": "pinpoint",
   "version": "1.0.0-beta.2",
   "author": {
     "name": "Timothy Yin",
@@ -33,6 +33,9 @@
     "@aws-sdk/client-s3": "^3.908.0",
     "@aws-sdk/s3-request-presigner": "^3.908.0",
     "@chronoframe/webgl-image": "workspace:*",
+    "@fontsource/noto-sans-sc": "^5.2.8",
+    "@fontsource/pacifico": "^5.2.7",
+    "@fontsource/rubik": "^5.2.8",
     "@indoorequal/vue-maplibre-gl": "^8.4.2",
     "@nuxt/fonts": "0.11.4",
     "@nuxt/icon": "2.0.0",

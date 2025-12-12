@@ -121,11 +121,135 @@ interface EditFormState {
   tags: string[]
   rating: number | null
   dateTaken: string | null
+  country: string | null
+  city: string | null
 }
 
 const editingPhoto = ref<Photo | null>(null)
 const isEditModalOpen = ref(false)
 const isSavingMetadata = ref(false)
+
+interface BatchEditFormState {
+  location: { latitude: number; longitude: number } | null
+  country: string | null
+  city: string | null
+  dateTaken: string | null
+}
+
+const isBatchEditModalOpen = ref(false)
+const isBatchSaving = ref(false)
+const batchEditFormState = reactive<BatchEditFormState>({
+  location: null,
+  country: null,
+  city: null,
+  dateTaken: null,
+})
+const batchLocationSelection = ref<{
+  latitude: number
+  longitude: number
+} | null>(null)
+
+const batchLocationLatModel = computed({
+  get: () => batchLocationSelection.value?.latitude,
+  set: (val) => {
+    if (typeof val === 'number') {
+      batchLocationSelection.value = {
+        latitude: val,
+        longitude: batchLocationSelection.value?.longitude || 0,
+      }
+    }
+  },
+})
+
+const batchLocationLngModel = computed({
+  get: () => batchLocationSelection.value?.longitude,
+  set: (val) => {
+    if (typeof val === 'number') {
+      batchLocationSelection.value = {
+        latitude: batchLocationSelection.value?.latitude || 0,
+        longitude: val,
+      }
+    }
+  },
+})
+
+watch(batchLocationSelection, (val) => {
+  if (val) {
+    batchEditFormState.location = val
+  }
+})
+
+const handleBatchLocationPick = (location: {
+  latitude: number
+  longitude: number
+}) => {
+  batchLocationSelection.value = location
+}
+
+const clearBatchSelectedLocation = () => {
+  batchLocationSelection.value = null
+  batchEditFormState.location = null
+}
+
+const handleBatchEditSubmit = async () => {
+  if (selectedIds.value.length === 0) return
+
+  if (
+    !batchEditFormState.location &&
+    !batchEditFormState.dateTaken &&
+    !batchEditFormState.country &&
+    !batchEditFormState.city
+  ) {
+    toast.add({
+      title: $t('dashboard.photos.messages.noChangesProvided'),
+      color: 'warning',
+    })
+    return
+  }
+
+  isBatchSaving.value = true
+  try {
+    const payload = {
+      photoIds: selectedIds.value,
+      location: batchEditFormState.location,
+      country: batchEditFormState.country,
+      city: batchEditFormState.city,
+      dateTaken: batchEditFormState.dateTaken
+        ? new Date(batchEditFormState.dateTaken).toISOString()
+        : undefined,
+    }
+
+    await $fetch('/api/photos/batch/update', {
+      method: 'PUT',
+      body: payload,
+    })
+
+    toast.add({
+      title: $t('dashboard.photos.messages.metadataUpdateSuccess'),
+      color: 'success',
+    })
+    isBatchEditModalOpen.value = false
+    // reset form
+    batchEditFormState.location = null
+    batchEditFormState.country = null
+    batchEditFormState.city = null
+    batchEditFormState.dateTaken = null
+    batchLocationSelection.value = null
+
+    // clear selection and refresh
+    selectedIds.value = []
+    await refresh()
+  } catch (error: any) {
+    console.error('Batch update failed:', error)
+    toast.add({
+      title: $t('dashboard.photos.messages.metadataUpdateFailed'),
+      description: error.message,
+      color: 'error',
+    })
+  } finally {
+    isBatchSaving.value = false
+  }
+}
 
 const editFormState = reactive<EditFormState>({
   title: '',
@@ -133,6 +257,8 @@ const editFormState = reactive<EditFormState>({
   tags: [],
   rating: null,
   dateTaken: null,
+  country: null,
+  city: null,
 })
 
 const originalMetadata = ref<{
@@ -140,6 +266,8 @@ const originalMetadata = ref<{
   description: string
   tags: string[]
   location: { latitude: number; longitude: number } | null
+  country: string | null
+  city: string | null
   rating: number | null
   dateTaken: string | null
 }>({
@@ -147,6 +275,8 @@ const originalMetadata = ref<{
   description: '',
   tags: [],
   location: null,
+  country: null,
+  city: null,
   rating: null,
   dateTaken: null,
 })
@@ -225,6 +355,14 @@ const ratingChanged = computed(
   () => editFormState.rating !== originalMetadata.value.rating,
 )
 
+const countryChanged = computed(
+  () => editFormState.country !== originalMetadata.value.country,
+)
+
+const cityChanged = computed(
+  () => editFormState.city !== originalMetadata.value.city,
+)
+
 const dateTakenChanged = computed(
   () => editFormState.dateTaken !== originalMetadata.value.dateTaken,
 )
@@ -236,7 +374,9 @@ const isMetadataDirty = computed(
     tagsChanged.value ||
     locationChanged.value ||
     ratingChanged.value ||
-    dateTakenChanged.value,
+    dateTakenChanged.value ||
+    countryChanged.value ||
+    cityChanged.value,
 )
 
 const formattedCoordinates = computed(() => {
@@ -532,6 +672,14 @@ const selectedRowsCount = computed((): number => {
 
 const totalRowsCount = computed((): number => {
   return table.value?.tableApi?.getFilteredRowModel().rows.length || 0
+})
+
+const selectedIds = computed(() => {
+  return (
+    table.value?.tableApi
+      ?.getFilteredSelectedRowModel()
+      .rows.map((row: any) => row.original.id) || []
+  )
 })
 
 const livePhotoStats = computed(() => {
@@ -1191,6 +1339,8 @@ const openMetadataEditor = (photo: Photo) => {
   editFormState.rating =
     typeof photo.exif?.Rating === 'number' ? photo.exif.Rating : null
   editFormState.dateTaken = initialDateTaken
+  editFormState.country = photo.country || null
+  editFormState.city = photo.city || null
 
   const initialLocation = hasCoordinates
     ? {
@@ -1204,6 +1354,8 @@ const openMetadataEditor = (photo: Photo) => {
     description: initialDescription,
     tags: [...initialTags],
     location: initialLocation ? { ...initialLocation } : null,
+    country: photo.country || null,
+    city: photo.city || null,
     rating: typeof photo.exif?.Rating === 'number' ? photo.exif.Rating : null,
     dateTaken: initialDateTaken,
   }
@@ -1237,6 +1389,8 @@ const saveMetadataChanges = async () => {
       location?: { latitude: number; longitude: number } | null
       rating?: number | null
       dateTaken?: string | null
+      country?: string | null
+      city?: string | null
     } = {}
 
     if (titleChanged.value) {
@@ -1245,6 +1399,14 @@ const saveMetadataChanges = async () => {
 
     if (descriptionChanged.value) {
       payload.description = normalizedDescription.value
+    }
+
+    if (countryChanged.value) {
+      payload.country = editFormState.country
+    }
+
+    if (cityChanged.value) {
+      payload.city = editFormState.city
     }
 
     if (tagsChanged.value) {
@@ -1555,13 +1717,10 @@ const confirmDelete = async () => {
         description: $t('dashboard.photos.messages.deleteSuccess'),
         color: 'info',
       })
-      await Promise.all(
-        targetPhotos.map((photo) =>
-          $fetch(`/api/photos/${photo.id}`, {
-            method: 'DELETE',
-          }),
-        ),
-      )
+      await $fetch('/api/photos/batch/delete', {
+        method: 'POST',
+        body: { photoIds: targetPhotos.map((p) => p.id) },
+      })
 
       toast.update(deleteToast.id, {
         title: $t('dashboard.photos.messages.batchDeleteSuccess', {
@@ -2304,6 +2463,19 @@ onUnmounted(() => {
                   variant="soft"
                   color="primary"
                   size="xs"
+                  icon="tabler:edit"
+                  class="flex-1 sm:flex-none"
+                  @click="isBatchEditModalOpen = true"
+                >
+                  <span>{{
+                    $t('dashboard.photos.selection.batchEdit')
+                  }}</span>
+                </UButton>
+
+                <UButton
+                  variant="soft"
+                  color="primary"
+                  size="xs"
                   icon="tabler:download"
                   class="flex-1 sm:flex-none"
                   @click="handleBatchDownload"
@@ -2375,6 +2547,30 @@ onUnmounted(() => {
                     class="w-full"
                   />
                 </UFormField>
+
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                      {{ $t('dashboard.photos.editModal.fields.locationInfo') }}
+                    </label>
+                  </div>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="editFormState.country"
+                      class="flex-1"
+                      placeholder="Country"
+                      size="sm"
+                      icon="tabler:flag"
+                    />
+                    <UInput
+                      v-model="editFormState.city"
+                      class="flex-1"
+                      placeholder="City"
+                      size="sm"
+                      icon="tabler:building-skyscraper"
+                    />
+                  </div>
+                </div>
 
                 <div class="space-y-2">
                   <UFormField
@@ -2495,7 +2691,7 @@ onUnmounted(() => {
                   <div class="flex flex-col gap-2">
                     <label
                       class="text-xs text-neutral-500 dark:text-neutral-400"
-                    >
+                  >
                       {{ $t('dashboard.photos.editModal.fields.coordinates') }}
                     </label>
                     <div class="flex gap-2">
@@ -2543,6 +2739,185 @@ onUnmounted(() => {
                     type="submit"
                     :loading="isSavingMetadata"
                     :disabled="!isMetadataDirty || isSavingMetadata"
+                    icon="tabler:device-floppy"
+                  >
+                    {{ $t('dashboard.photos.editModal.actions.save') }}
+                  </UButton>
+                </div>
+              </UForm>
+            </div>
+          </template>
+        </UModal>
+
+        <UModal v-model:open="isBatchEditModalOpen">
+          <template #content>
+            <div class="p-6 space-y-6 max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <div class="space-y-1">
+                <h2
+                  class="text-lg font-semibold text-neutral-800 dark:text-neutral-100"
+                >
+                  {{ $t('dashboard.photos.batchEditModal.title') }}
+                </h2>
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">
+                  {{
+                    $t('dashboard.photos.batchEditModal.description', {
+                      count: selectedIds.length,
+                    })
+                  }}
+                </p>
+              </div>
+
+              <UForm
+                :state="batchEditFormState"
+                class="space-y-5"
+                @submit="handleBatchEditSubmit"
+              >
+                <UFormField
+                  :label="$t('dashboard.photos.editModal.fields.dateTaken')"
+                  name="dateTaken"
+                >
+                  <div class="flex gap-2 items-center">
+                    <UInput
+                      v-model="batchEditFormState.dateTaken"
+                      type="datetime-local"
+                      class="w-full"
+                      icon="tabler:calendar"
+                      :placeholder="$t('dashboard.photos.editModal.fields.dateTakenPlaceholder')"
+                    />
+                    <UTooltip :text="$t('common.actions.setNow')">
+                      <UButton
+                        icon="tabler:clock"
+                        color="neutral"
+                        variant="soft"
+                        size="sm"
+                        @click="batchEditFormState.dateTaken = dayjs().format('YYYY-MM-DDTHH:mm')"
+                      />
+                    </UTooltip>
+                    <UTooltip :text="$t('common.actions.clear')">
+                      <UButton
+                        icon="tabler:x"
+                        color="neutral"
+                        variant="ghost"
+                        size="sm"
+                        :disabled="!batchEditFormState.dateTaken"
+                        @click="batchEditFormState.dateTaken = null"
+                      />
+                    </UTooltip>
+                  </div>
+                </UFormField>
+
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                      {{ $t('dashboard.photos.editModal.fields.locationInfo') }}
+                    </label>
+                  </div>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="batchEditFormState.country"
+                      class="flex-1"
+                      placeholder="Country"
+                      size="sm"
+                      icon="tabler:flag"
+                    />
+                    <UInput
+                      v-model="batchEditFormState.city"
+                      class="flex-1"
+                      placeholder="City"
+                      size="sm"
+                      icon="tabler:building-skyscraper"
+                    />
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between">
+                    <label
+                      class="text-sm font-medium text-neutral-700 dark:text-neutral-200"
+                    >
+                      {{ $t('dashboard.photos.editModal.fields.location') }}
+                    </label>
+                    <UButton
+                      v-if="batchLocationSelection"
+                      variant="ghost"
+                      color="neutral"
+                      size="xs"
+                      icon="tabler:map-off"
+                      @click.prevent="clearBatchSelectedLocation"
+                    >
+                      {{
+                        $t('dashboard.photos.editModal.fields.clearLocation')
+                      }}
+                    </UButton>
+                  </div>
+
+                  <MapLocationPicker
+                    v-model="batchLocationSelection"
+                    class="border border-neutral-200 dark:border-neutral-800"
+                    @pick="handleBatchLocationPick"
+                  >
+                    <template #empty>
+                      <span
+                        class="px-3 py-2 rounded-full bg-white/80 text-neutral-600 dark:bg-neutral-900/80 dark:text-neutral-200 shadow"
+                      >
+                        {{
+                          $t('dashboard.photos.editModal.fields.locationHint')
+                        }}
+                      </span>
+                    </template>
+                  </MapLocationPicker>
+
+                  <div class="flex flex-col gap-2">
+                    <label
+                      class="text-xs text-neutral-500 dark:text-neutral-400"
+                    >
+                      {{ $t('dashboard.photos.editModal.fields.coordinates') }}
+                    </label>
+                    <div class="flex gap-2">
+                      <UInput
+                        v-model="batchLocationLatModel"
+                        type="number"
+                        step="any"
+                        placeholder="Latitude"
+                        size="sm"
+                        class="flex-1"
+                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                      >
+                        <template #trailing>
+                          <span class="text-xs text-gray-500 dark:text-gray-400">Lat</span>
+                        </template>
+                      </UInput>
+                      <UInput
+                        v-model="batchLocationLngModel"
+                        type="number"
+                        step="any"
+                        placeholder="Longitude"
+                        size="sm"
+                        class="flex-1"
+                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                      >
+                        <template #trailing>
+                          <span class="text-xs text-gray-500 dark:text-gray-400">Lng</span>
+                        </template>
+                      </UInput>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="flex items-center justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-800"
+                >
+                  <UButton
+                    variant="ghost"
+                    color="neutral"
+                    @click.prevent="isBatchEditModalOpen = false"
+                  >
+                    {{ $t('dashboard.photos.editModal.actions.cancel') }}
+                  </UButton>
+                  <UButton
+                    type="submit"
+                    :loading="isBatchSaving"
+                    :disabled="isBatchSaving || (!batchEditFormState.location && !batchEditFormState.dateTaken && !batchEditFormState.country && !batchEditFormState.city)"
                     icon="tabler:device-floppy"
                   >
                     {{ $t('dashboard.photos.editModal.actions.save') }}

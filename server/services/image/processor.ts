@@ -5,6 +5,11 @@ import { getStorageManager } from '~~/server/plugins/3.storage'
 import sharp from 'sharp'
 import { withRetry, RetryPresets, RetryConditions } from '../../utils/retry'
 
+// 禁用 sharp 缓存以降低内存占用，这对于低配置服务器（如 2GB 内存）至关重要
+// 避免 Sharp 占用过多堆外内存导致 OOM
+sharp.cache(false)
+
+
 export interface ProcessedImageData {
   sharpInst: sharp.Sharp
   imageBuffer: Buffer

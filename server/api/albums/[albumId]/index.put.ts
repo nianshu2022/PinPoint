@@ -20,6 +20,7 @@ export default eventHandler(async (event) => {
       description: z.string().max(1000).optional(),
       coverPhotoId: z.string().optional(),
       photoIds: z.array(z.string()).optional(),
+      createdAt: z.string().datetime().optional(),
     }).parse,
   )
 
@@ -56,6 +57,10 @@ export default eventHandler(async (event) => {
 
     if (body.coverPhotoId !== undefined) {
       updateData.coverPhotoId = body.coverPhotoId || null
+    }
+
+    if (body.createdAt !== undefined) {
+      updateData.createdAt = new Date(body.createdAt)
     }
 
     tx.update(tables.albums)

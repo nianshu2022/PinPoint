@@ -8,6 +8,10 @@ services:
       - '3000:3000'
     volumes:
       - ./data:/app/data
+    environment:
+      # 针对低内存服务器的优化配置
+      - QUEUE_WORKER_COUNT=2
+      - NODE_OPTIONS=--max-old-space-size=1536
     env_file:
       - .env
 

@@ -255,24 +255,19 @@ const onShuffle = () => {
       <!-- 城市面板 -->
       <template #cities>
         <div class="space-y-0.5 max-h-64 overflow-y-auto">
-          <div
-            v-for="city in availableFilters.cities"
-            :key="city.label"
-            class="flex items-center justify-between cursor-pointer select-none hover:bg-neutral-400/30 dark:hover:bg-info-800/30 rounded-lg px-2 py-2"
-            :class="
-              isFilterSelected('cities', city.label)
-                ? 'bg-neutral-400/30 dark:bg-info-800/30'
-                : ''
-            "
-            @click="handleToggleFilter('cities', city.label)"
-          >
-            <span class="text-sm text-default font-medium truncate">
-              {{ city.label }}
-            </span>
-            <Icon
-              v-if="isFilterSelected('cities', city.label)"
-              name="tabler:check"
-              class="size-4 text-green-500"
+          <div class="flex flex-wrap gap-1">
+            <UBadge
+              v-for="city in availableFilters.cities"
+              :key="city.label"
+              :label="city.label"
+              :color="isFilterSelected('cities', city.label) ? 'info' : 'neutral'"
+              :trailing-icon="
+                isFilterSelected('cities', city.label) ? 'tabler:check' : ''
+              "
+              variant="soft"
+              class="cursor-pointer select-none transition-colors"
+              :class="`${isFilterSelected('cities', city.label) ? '' : 'bg-neutral-800/10 text-neutral-800 hover:bg-neutral-800/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20'}`"
+              @click="handleToggleFilter('cities', city.label)"
             />
           </div>
           <div

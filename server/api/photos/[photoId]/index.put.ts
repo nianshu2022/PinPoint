@@ -26,6 +26,8 @@ const bodySchema = z.object({
       z.null(),
     ])
     .optional(),
+  country: z.string().trim().max(128).nullable().optional(),
+  city: z.string().trim().max(128).nullable().optional(),
   rating: z.union([z.number().int().min(0).max(5), z.null()]).optional(),
   dateTaken: z.string().datetime().optional(),
 })
@@ -58,7 +60,9 @@ export default eventHandler(async (event) => {
     payload.tags === undefined &&
     payload.location === undefined &&
     payload.rating === undefined &&
-    payload.dateTaken === undefined
+    payload.dateTaken === undefined &&
+    payload.country === undefined &&
+    payload.city === undefined
   ) {
     throw createError({
       statusCode: 400,
@@ -101,6 +105,19 @@ export default eventHandler(async (event) => {
     payload.title !== undefined ? payload.title.trim() : undefined
   const normalizedDescription =
     payload.description !== undefined ? payload.description.trim() : undefined
+  // Treat empty strings as null
+  const normalizedCountry =
+    payload.country !== undefined &&
+    payload.country !== null &&
+    payload.country.trim() === ''
+      ? null
+      : payload.country
+  const normalizedCity =
+    payload.city !== undefined &&
+    payload.city !== null &&
+    payload.city.trim() === ''
+      ? null
+      : payload.city
   const normalizedTags = normalizeTags(payload.tags)
   let pendingReverseGeocode: {
     latitude: number
@@ -225,12 +242,25 @@ export default eventHandler(async (event) => {
       updateData.tags = normalizedTags
     }
 
+    // Only update location fields if they are provided
+    if (normalizedCountry !== undefined) {
+      updateData.country = normalizedCountry
+    }
+    if (normalizedCity !== undefined) {
+      updateData.city = normalizedCity
+    }
+
     if (payload.location !== undefined) {
       if (payload.location) {
         updateData.latitude = payload.location.latitude
         updateData.longitude = payload.location.longitude
-        updateData.country = null
-        updateData.city = null
+        
+        // If latitude/longitude changed but country/city weren't manually provided, 
+        // clear them to allow reverse geocoding to fill them later.
+        // If manually provided, they will be set above and preserved here.
+        if (normalizedCountry === undefined) updateData.country = null
+        if (normalizedCity === undefined) updateData.city = null
+        
         updateData.locationName = null
         pendingReverseGeocode = {
           latitude: payload.location.latitude,
@@ -239,8 +269,11 @@ export default eventHandler(async (event) => {
       } else {
         updateData.latitude = null
         updateData.longitude = null
-        updateData.country = null
-        updateData.city = null
+        
+        // Only clear if not manually setting them
+        if (normalizedCountry === undefined) updateData.country = null
+        if (normalizedCity === undefined) updateData.city = null
+        
         updateData.locationName = null
       }
     }

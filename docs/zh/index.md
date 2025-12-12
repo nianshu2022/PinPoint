@@ -3,12 +3,12 @@
 layout: home
 
 hero:
-  name: "ChronoFrame"
+  name: "PinPoint"
   text: "自部署个人画廊"
   tagline: "在线管理照片，多存储后端、LivePhoto、地球仪视图"
   image:
     src: /logo.png
-    alt: ChronoFrame
+    alt: PinPoint
     style: "filter: drop-shadow(0 0 30px rgba(168, 85, 247, 0.7)) drop-shadow(0 0 60px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 100px rgba(168, 85, 247, 0.3)); width: 300px; height: 300px;"
   actions:
     - theme: brand
@@ -16,7 +16,7 @@ hero:
       link: /zh/guide/getting-started
     - theme: alt
       text: 查看 GitHub
-      link: https://github.com/HoshinoSuzumi/chronoframe
+      link: https://github.com/nianshu2022/PinPoint
     - theme: alt
       text: 查看演示
       link: https://lens.bh8.ga
@@ -45,14 +45,14 @@ features:
 
 ## 🌍 演示站点
 
-下面是一些由开发者、社区成员搭建的，运行良好的 ChronoFrame 实例：
+下面是一些由开发者、社区成员搭建的，运行良好的 PinPoint 实例：
 
 - [**TimoYin's Mems**](https://lens.bh8.ga)
 
 ## 💬 社区支持
 
-- **GitHub Issues**: [报告问题](https://github.com/HoshinoSuzumi/chronoframe/issues)
-- **GitHub Discussions**: [讨论分享](https://github.com/HoshinoSuzumi/chronoframe/discussions)
+- **GitHub Issues**: [报告问题](https://github.com/nianshu2022/PinPoint/issues)
+- **GitHub Discussions**: [讨论分享](https://github.com/nianshu2022/PinPoint/discussions)
 - **Discord**: [加入我们](https://discord.gg/mDZjCwdQGk)
 
 ## 📄 开源协议

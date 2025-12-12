@@ -19,6 +19,7 @@ interface AlbumItem extends Album {
 interface AlbumFormState {
   title: string
   description: string
+  createdAt: string
 }
 
 const albums = ref<AlbumItem[]>([])
@@ -35,6 +36,7 @@ const currentAlbum = ref<AlbumItem | null>(null)
 const formData = reactive<AlbumFormState>({
   title: '',
   description: '',
+  createdAt: '',
 })
 
 const formRef = ref()
@@ -43,6 +45,10 @@ const isSubmittingForm = ref(false)
 const selectedPhotoIds = ref<string[]>([])
 const coverPhotoId = ref('')
 const photoSelectorSearchQuery = ref('')
+
+const setNowForCreatedAt = () => {
+  formData.createdAt = dayjs().format('YYYY-MM-DDTHH:mm')
+}
 
 const validateForm = (state: any): FormError[] => {
   const errors: FormError[] = []
@@ -101,6 +107,7 @@ const openCreateSlideover = () => {
   currentAlbum.value = null
   formData.title = ''
   formData.description = ''
+  formData.createdAt = dayjs().format('YYYY-MM-DDTHH:mm')
   selectedPhotoIds.value = []
   coverPhotoId.value = ''
   formRef.value?.clear()
@@ -113,6 +120,7 @@ const openEditSlideover = async (album: AlbumItem) => {
     const albumDetail = (await $fetch(`/api/albums/${album.id}`)) as any
     formData.title = album.title
     formData.description = album.description || ''
+    formData.createdAt = dayjs(album.createdAt).format('YYYY-MM-DDTHH:mm')
     selectedPhotoIds.value = (albumDetail.photos || []).map((p: Photo) => p.id)
     coverPhotoId.value = album.coverPhotoId || ''
     formRef.value?.clear()
@@ -142,6 +150,7 @@ const onFormSubmit = async (event: FormSubmitEvent<AlbumFormState>) => {
           description: event.data.description || undefined,
           coverPhotoId: coverPhotoId.value || undefined,
           photoIds: selectedPhotoIds.value,
+          createdAt: event.data.createdAt ? new Date(event.data.createdAt).toISOString() : undefined,
         },
       })
 
@@ -159,6 +168,7 @@ const onFormSubmit = async (event: FormSubmitEvent<AlbumFormState>) => {
           description: event.data.description || undefined,
           coverPhotoId: coverPhotoId.value || undefined,
           photoIds: selectedPhotoIds.value,
+          createdAt: event.data.createdAt ? new Date(event.data.createdAt).toISOString() : undefined,
         },
       })
 
@@ -550,6 +560,28 @@ const columns: any[] = [
                     "
                     :rows="3"
                   />
+                </UFormField>
+
+                <UFormField
+                  :label="$t('dashboard.albums.form.createdAt')"
+                  name="createdAt"
+                >
+                  <div class="flex items-center gap-2">
+                    <UInput
+                      v-model="formData.createdAt"
+                      type="datetime-local"
+                      class="w-full"
+                      icon="tabler:calendar"
+                    />
+                    <UButton
+                      icon="tabler:clock"
+                      variant="ghost"
+                      color="neutral"
+                      size="sm"
+                      :title="$t('common.actions.setNow')"
+                      @click="setNowForCreatedAt"
+                    />
+                  </div>
                 </UFormField>
               </UForm>
 

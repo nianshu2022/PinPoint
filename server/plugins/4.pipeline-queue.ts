@@ -3,9 +3,14 @@ import { WorkerPool } from '../services/pipeline-queue'
 export default defineNitroPlugin(async (_nitroApp) => {
   const _logger = logger.dynamic('queue')
 
+  // 从环境变量读取 worker 数量，默认为 2（适合 2GB 内存服务器）
+  const workerCount = process.env.QUEUE_WORKER_COUNT
+    ? parseInt(process.env.QUEUE_WORKER_COUNT)
+    : 2
+
   const workerPool = new WorkerPool(
     {
-      workerCount: 5,
+      workerCount,
       intervalMs: 1500,
       intervalOffset: 300,
       enableLoadBalancing: true,

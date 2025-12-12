@@ -119,6 +119,25 @@ const gpsCoordinates = computed(() => {
   return null
 })
 
+const cleanDescription = computed(() => {
+  const desc = props.currentPhoto.description
+  if (!desc) return null
+
+  const trimmed = desc.trim()
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      JSON.parse(trimmed)
+      return null
+    } catch {
+      return desc
+    }
+  }
+  return desc
+})
+
 const formatedExifData = computed<Record<string, KVData[]>>(() => {
   const sections: Record<string, KVData[]> = {}
 
@@ -509,10 +528,10 @@ const onAlbumClick = (albumId: number) => {
     >
       <!-- 照片描述 -->
       <div
-        v-if="currentPhoto.description"
+        v-if="cleanDescription"
         class="text-sm text-white text-justify"
       >
-        {{ currentPhoto.description }}
+        {{ cleanDescription }}
       </div>
 
       <PhotoMiniMap

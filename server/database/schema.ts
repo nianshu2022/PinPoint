@@ -24,6 +24,17 @@ type PipelineQueuePayload =
       latitude?: number | null
       longitude?: number | null
     }
+  | {
+      type: 'cleanup-storage'
+      storageKey: string
+      thumbnailKey?: string | null
+      livePhotoVideoKey?: string | null
+    }
+  | {
+      type: 'write-exif'
+      photoId: string
+      updates: Record<string, any>
+    }
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -95,6 +106,8 @@ export const pipelineQueue = sqliteTable('pipeline_queue', {
       'motion-photo',
       'reverse-geocoding',
       'live-photo',
+      'cleanup',
+      'write-exif',
     ],
   }),
   errorMessage: text('error_message'),

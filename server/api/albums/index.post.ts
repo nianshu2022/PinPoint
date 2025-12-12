@@ -10,6 +10,7 @@ export default eventHandler(async (event) => {
       description: z.string().max(1000).optional(),
       coverPhotoId: z.string().optional(),
       photoIds: z.array(z.string()).optional(),
+      createdAt: z.string().datetime().optional(),
     }).parse,
   )
 
@@ -22,6 +23,7 @@ export default eventHandler(async (event) => {
         title: body.title,
         description: body.description || null,
         coverPhotoId: body.coverPhotoId || null,
+        createdAt: body.createdAt ? new Date(body.createdAt) : new Date(),
       })
       .returning()
       .get()

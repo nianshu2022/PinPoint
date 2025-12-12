@@ -1,14 +1,14 @@
-# WithYou
+# PinPoint
 
 <div align="center">
-  <img src="public/logo.png" width="120" alt="WithYou Logo" />
+  <img src="public/logo.png" width="120" alt="PinPoint Logo" />
   <p>您的自托管照片库，珍藏美好回忆。</p>
   <p>基于 ChronoFrame 二次开发。</p>
 </div>
 
 ## ✨ 简介
 
-**WithYou** 是一款自托管的个人照片库应用，旨在帮助您组织和展示珍贵的照片回忆。它支持自动提取 EXIF 信息、在交互式地图上展示拍摄位置，并提供美观的瀑布流布局。
+**PinPoint** 是一款自托管的个人照片库应用，旨在帮助您组织和展示珍贵的照片回忆。它支持自动提取 EXIF 信息、在交互式地图上展示拍摄位置，并提供美观的瀑布流布局。
 
 > 本项目基于 [ChronoFrame](https://github.com/simonno3/chronoframe) 二次开发。
 
@@ -53,7 +53,7 @@
 ```bash
 # 管理员邮箱（必须）
 CFRAME_ADMIN_EMAIL=
-# 管理员用户名（可选，默认 ChronoFrame）
+# 管理员用户名（可选，默认 PinPoint）
 CFRAME_ADMIN_NAME=
 # 管理员密码（可选，默认 CF1234@!）
 CFRAME_ADMIN_PASSWORD=

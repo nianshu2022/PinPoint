@@ -9,7 +9,7 @@ const props = withDefaults(
     firstScreenItems?: number
   }>(),
   {
-    firstScreenItems: 30,
+    firstScreenItems: 20,
   },
 )
 

@@ -27,16 +27,16 @@ The documentation is still being written; some sections may be incomplete.
 
 Use the published image on GitHub Container Registry and Docker Hub. Choose the source that works best for your network:
 
-#### [GitHub Container Registry (GHCR)](https://github.com/HoshinoSuzumi/chronoframe/pkgs/container/chronoframe)
+#### [GitHub Container Registry (GHCR)](https://github.com/nianshu2022/PinPoint/pkgs/container/pinpoint)
 
 ```bash
-docker pull ghcr.io/hoshinosuzumi/chronoframe:latest
+docker pull ghcr.io/nianshu2022/pinpoint:latest
 ```
 
-#### [Docker Hub](https://hub.docker.com/r/hoshinosuzumi/chronoframe)
+#### [Docker Hub](https://hub.docker.com/r/nianshu2022/pinpoint)
 
 ```bash
-docker pull hoshinosuzumi/chronoframe:latest
+docker pull nianshu2022/pinpoint:latest
 ```
 
 ### Create `.env`

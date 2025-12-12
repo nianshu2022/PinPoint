@@ -72,11 +72,11 @@ const logFileReporter = {
         }) || [],
       }
       const logLine = `${safeStringify(fallbackLog)}\n`
-      fs.appendFile(logFilePath, logLine, (err) => {
-        if (err) {
-          console.error('Failed to write log to file:', err)
-        }
-      })
+    fs.appendFile(logFilePath, logLine, (err) => {
+      if (err) {
+        console.error('Failed to write log to file:', err)
+      }
+    })
     }
   },
 }
