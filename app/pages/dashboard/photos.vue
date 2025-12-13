@@ -2311,9 +2311,9 @@ onUnmounted(() => {
             <div class="flex rounded-md shadow-sm">
               <USelectMenu
                 v-model="activeFilters.searchField"
-                :options="searchFieldOptions"
-                value-attribute="value"
-                option-attribute="label"
+                :items="searchFieldOptions"
+                value-key="value"
+                label-key="label"
                 :searchable="false"
                 :search-input="false"
                 class="w-32"
