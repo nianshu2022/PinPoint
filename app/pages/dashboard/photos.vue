@@ -730,18 +730,20 @@ const livePhotoStats = computed(() => {
 
 const photoFilter = ref<'all' | 'livephoto' | 'static'>('all')
 
+const { t } = useI18n()
+
 const searchFieldOptions = computed(() => [
-  { label: $t('dashboard.photos.search.all'), value: 'all' },
-  { label: $t('dashboard.photos.table.columns.id'), value: 'id' },
-  { label: $t('dashboard.photos.table.columns.title'), value: 'title' },
-  { label: $t('dashboard.photos.table.columns.tags'), value: 'tags' },
-  { label: $t('dashboard.photos.table.columns.location'), value: 'location' },
-  { label: $t('dashboard.photos.table.columns.dateTaken'), value: 'dateTaken' }
+  { label: t('dashboard.photos.search.all'), value: 'all' },
+  { label: t('dashboard.photos.table.columns.id'), value: 'id' },
+  { label: t('dashboard.photos.table.columns.title'), value: 'title' },
+  { label: t('dashboard.photos.table.columns.tags'), value: 'tags' },
+  { label: t('dashboard.photos.table.columns.location'), value: 'location' },
+  { label: t('dashboard.photos.table.columns.dateTaken'), value: 'dateTaken' }
 ])
 
 const currentSearchLabel = computed(() => {
   const option = searchFieldOptions.value.find((o) => o.value === activeFilters.value.searchField)
-  return option ? option.label : $t('dashboard.photos.search.all')
+  return option ? option.label : t('dashboard.photos.search.all')
 })
 
 const filteredData = computed(() => {
@@ -2312,6 +2314,7 @@ onUnmounted(() => {
                 :options="searchFieldOptions"
                 value-attribute="value"
                 option-attribute="label"
+                :searchable="false"
                 :ui="{ width: 'w-32' }"
               >
                 <template #default="{ open }">
