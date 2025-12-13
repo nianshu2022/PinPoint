@@ -2315,23 +2315,10 @@ onUnmounted(() => {
                 value-attribute="value"
                 option-attribute="label"
                 :searchable="false"
-                :ui="{ width: 'w-32' }"
+                :search-input="false"
+                class="w-32"
+                :ui="{ rounded: 'rounded-l-md rounded-r-none' }"
               >
-                <template #default="{ open }">
-                  <UButton
-                    color="white"
-                    variant="solid"
-                    class="rounded-r-none border-r-0 w-28 justify-between focus:ring-0"
-                    :class="[open ? 'ring-2 ring-primary-500 z-10' : '']"
-                    :ui="{ rounded: 'rounded-l-md rounded-r-none' }"
-                  >
-                    <span class="truncate block">{{ currentSearchLabel }}</span>
-                    <Icon
-                      name="tabler:chevron-down"
-                      class="w-4 h-4 text-gray-400 shrink-0"
-                    />
-                  </UButton>
-                </template>
               </USelectMenu>
               <UInput
                 v-model="activeFilters.search"
