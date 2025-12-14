@@ -9,16 +9,14 @@ export const generateThumbnailAndHash = async (
   return await withRetry(async () => {
     const sharpInst = sharp(buffer, { failOnError: false }).rotate()
     
-    // 根据文件大小调整缩略图质量
-    // const fileSizeMB = buffer.length / (1024 * 1024)
-    // const quality = fileSizeMB > 5 ? 85 : 100
+    const quality = 80
     
     const thumbnailBuffer = await sharpInst
       .resize(400, null, { 
         withoutEnlargement: true,
         fastShrinkOnLoad: false // 提高质量
       })
-      .webp({ quality: 80 })
+      .webp({ quality })
       .toBuffer()
     
     logger?.info(`Successfully generated thumbnail (quality: ${quality})`)
