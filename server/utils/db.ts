@@ -25,6 +25,7 @@ export function useDB() {
     sqliteInstance.pragma('synchronous = NORMAL')
     sqliteInstance.pragma('cache_size = 1000')
     sqliteInstance.pragma('temp_store = MEMORY')
+    sqliteInstance.pragma('busy_timeout = 5000')
 
     dbInstance = drizzle(sqliteInstance, { schema })
   }

@@ -5,6 +5,7 @@ import {
   integer,
   real,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/sqlite-core'
 import type { NeededExif } from '~~/shared/types/photo'
 import type { StorageConfig } from '../services/storage'
@@ -73,7 +74,10 @@ export const photos = sqliteTable('photos', {
   isLivePhoto: integer('is_live_photo').default(0).notNull(),
   livePhotoVideoUrl: text('live_photo_video_url'),
   livePhotoVideoKey: text('live_photo_video_key'),
-})
+}, (t) => [
+  index('idx_date_taken').on(t.dateTaken),
+  index('idx_storage_key').on(t.storageKey)
+])
 
 export const pipelineQueue = sqliteTable('pipeline_queue', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -115,7 +119,9 @@ export const pipelineQueue = sqliteTable('pipeline_queue', {
     .notNull()
     .default(sql`(unixepoch())`),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
-})
+}, (t) => [
+  index('idx_pipeline_queue_status').on(t.status),
+])
 
 // 照片表态表
 export const photoReactions = sqliteTable('photo_reactions', {

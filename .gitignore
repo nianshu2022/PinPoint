@@ -28,6 +28,7 @@ logs
 # Local env files
 .env
 .env.*
+*.env*copy*
 !.env.example
 
 # VitePress outputs
