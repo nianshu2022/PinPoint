@@ -21,8 +21,40 @@ useHead({
     `${title ? title + ' | ' : ''}${appTitle.value || 'ChronoFrame'}`,
 })
 
-const { data, refresh, status } = useFetch('/api/photos')
-const photos = computed(() => (data.value as Photo[]) || [])
+const { data, refresh, status } = useFetch('/api/photos', { query: { limit: 50 } })
+
+const photosList = ref<Photo[]>([])
+const nextCursor = ref<string | null>(null)
+const isLoadingMore = ref(false)
+
+watch(data, (newData: any) => {
+  if (newData?.items) {
+    // Reset and initialize when base data refreshes
+    photosList.value = newData.items
+    nextCursor.value = newData.nextCursor
+  }
+}, { immediate: true })
+
+const loadMorePhotos = async () => {
+  if (!nextCursor.value || isLoadingMore.value) return
+  isLoadingMore.value = true
+  try {
+    const res: any = await $fetch('/api/photos', {
+      query: { limit: 50, cursor: nextCursor.value }
+    })
+    if (res?.items) {
+      photosList.value.push(...res.items)
+      nextCursor.value = res.nextCursor
+    }
+  } catch (e) {
+    console.error('Failed to load more photos', e)
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+provide('loadMorePhotos', loadMorePhotos)
+
+const photos = computed(() => photosList.value)
 
 const { switchToIndex, closeViewer, clearReturnRoute } = useViewerState()
 const { currentPhotoIndex, isViewerOpen, returnRoute, isDirectAccess } =

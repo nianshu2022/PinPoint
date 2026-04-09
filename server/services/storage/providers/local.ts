@@ -1,5 +1,6 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, createWriteStream } from 'node:fs'
 import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import type {
   LocalStorageConfig,
   StorageObject,
@@ -33,15 +34,29 @@ export class LocalStorageProvider implements StorageProvider {
   private resolveAbsoluteKey(key: string): { absFile: string; relKey: string } {
     const relKey = sanitizeKey(combinePrefixAndKey(this.config.prefix, key))
     const absFile = path.resolve(this.config.basePath, relKey)
+    
+    // Prevent Path Traversal
+    const baseAbs = path.resolve(this.config.basePath)
+    if (!absFile.startsWith(baseAbs + path.sep) && absFile !== baseAbs) {
+      throw new Error('Invalid path: Directory traversal is not allowed')
+    }
+    
     return { absFile, relKey }
   }
 
-  async create(key: string, fileBuffer: Buffer): Promise<StorageObject> {
+  async create(key: string, fileData: Buffer | import('node:stream').Readable | import('node:stream/web').ReadableStream): Promise<StorageObject> {
     const { absFile, relKey } = this.resolveAbsoluteKey(key)
     await ensureDir(path.dirname(absFile))
     // 原子写入：写到临时文件再重命名
     const tempFile = `${absFile}.tmp-${Date.now()}`
-    await fs.writeFile(tempFile, fileBuffer)
+    
+    if (Buffer.isBuffer(fileData)) {
+      await fs.writeFile(tempFile, fileData)
+    } else {
+      const writeStream = createWriteStream(tempFile)
+      await pipeline(fileData as any, writeStream)
+    }
+    
     await fs.rename(tempFile, absFile)
     const stat = await fs.stat(absFile)
     this.logger?.success?.(`Saved file: ${absFile}`)
@@ -123,6 +138,11 @@ export class LocalStorageProvider implements StorageProvider {
     // Fallback: try without adding prefix (in case key already contains it or was stored raw)
     const rawRel = sanitizeKey(key)
     const rawAbs = path.resolve(this.config.basePath, rawRel)
+    const baseAbs = path.resolve(this.config.basePath)
+    
+    if (!rawAbs.startsWith(baseAbs + path.sep) && rawAbs !== baseAbs) {
+      return null // directory traversal check
+    }
     try {
       const stat = await fs.stat(rawAbs)
       if (!stat.isFile()) return null

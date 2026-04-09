@@ -81,7 +81,7 @@ const mapStyle = computed(() => {
     // Default style (style=8) - Simplified map
     // style=7 - Standard vector map (more details)
     // style=6 - Satellite map
-    const mapStyleType = 8
+    const mapStyleType: number = 8
 
     const tileDomain = mapStyleType === 6 ? 'webst' : 'webrd'
 
@@ -132,7 +132,6 @@ const mapStyle = computed(() => {
     <ClientOnly>
       <MglMap
         v-if="provider === 'maplibre'"
-        class="w-full h-full"
         :map-key="mapId"
         :map-style="mapStyle as StyleSpecification"
         :center
@@ -146,7 +145,6 @@ const mapStyle = computed(() => {
       </MglMap>
       <MapboxMap
         v-else
-        class="w-full h-full"
         :map-id="mapId || 'cframe-mapbox-map'"
         :options="{
           accessToken: mapConfig['mapbox.token'],

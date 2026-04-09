@@ -1,6 +1,8 @@
 import path from 'path'
 import { eq } from 'drizzle-orm'
 import { getStorageManager } from '~~/server/plugins/3.storage'
+import { transcodeMovToMp4 } from './transcoder'
+import { logger } from '~~/server/utils/logger'
 
 /**
  * 处理 LivePhoto MOV 文件，匹配相同文件名的照片并更新 LivePhoto 信息
@@ -51,8 +53,27 @@ export const processLivePhotoVideo = async (
       return false
     }
     
+    // HEVC MOV transcoding to MP4 H.264
+    let finalVideoKey = videoKey
+    if (finalVideoKey.toLowerCase().endsWith('.mov')) {
+      logger.chrono.info(`Transcoding independent LivePhoto video to mp4: ${finalVideoKey}`)
+      const videoBuffer = await storageProvider.get(finalVideoKey)
+      if (videoBuffer) {
+        try {
+          const mp4Buffer = await transcodeMovToMp4(videoBuffer, logger.chrono)
+          const mp4Key = finalVideoKey.replace(/\.mov$/i, '.mp4')
+          await storageProvider.create(mp4Key, mp4Buffer, 'video/mp4')
+          await storageProvider.delete(finalVideoKey)
+          finalVideoKey = mp4Key
+          logger.chrono.info(`Transcoding finished, new key: ${mp4Key}`)
+        } catch (e) {
+          logger.chrono.error(`Failed to transcode live photo, keeping original:`, e)
+        }
+      }
+    }
+
     // 获取视频的公共 URL
-    const videoUrl = storageProvider.getPublicUrl(videoKey)
+    const videoUrl = storageProvider.getPublicUrl(finalVideoKey)
     
     // 更新照片记录，设置 LivePhoto 信息
     await db
@@ -60,7 +81,7 @@ export const processLivePhotoVideo = async (
       .set({
         isLivePhoto: 1,
         livePhotoVideoUrl: videoUrl,
-        livePhotoVideoKey: videoKey,
+        livePhotoVideoKey: finalVideoKey,
       })
       .where(eq(tables.photos.id, matchedPhoto.id))
     

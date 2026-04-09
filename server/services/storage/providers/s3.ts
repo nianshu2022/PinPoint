@@ -105,7 +105,7 @@ export class S3StorageProvider implements StorageProvider {
 
   async create(
     key: string,
-    data: Buffer,
+    data: Buffer | import('node:stream').Readable | import('node:stream/web').ReadableStream,
     contentType?: string,
   ): Promise<StorageObject> {
     try {
@@ -117,7 +117,7 @@ export class S3StorageProvider implements StorageProvider {
       const cmd = new PutObjectCommand({
         Bucket: this.config.bucket,
         Key: absoluteKey,
-        Body: data,
+        Body: data as any,
         ContentType: contentType || 'application/octet-stream',
       })
 
@@ -127,7 +127,7 @@ export class S3StorageProvider implements StorageProvider {
 
       return {
         key: absoluteKey,
-        size: data.length,
+        size: Buffer.isBuffer(data) ? data.length : undefined, // Size won't be available immediately for streams
         lastModified: new Date(),
         etag: resp.ETag,
       }

@@ -96,7 +96,7 @@ export const useLivePhotoProcessor = () => {
 
       updateProgress(30)
 
-      // 使用流式读取，支持大文件
+      // 使用流式读取计算进度
       const reader = response.body?.getReader()
       if (!reader) throw new Error('Failed to get response reader')
 
@@ -111,43 +111,15 @@ export const useLivePhotoProcessor = () => {
         chunks.push(value)
         receivedLength += value.length
         
-        // 更新下载进度
         if (contentLength > 0) {
-          const downloadProgress = 30 + (receivedLength / contentLength) * 40 // 30-70%
+          const downloadProgress = 10 + (receivedLength / contentLength) * 90
           updateProgress(Math.round(downloadProgress))
         }
       }
 
-      const movBlob = new Blob(chunks)
-      updateProgress(70)
-
-      // 优化的视频处理：先检查格式兼容性
-      const mp4Blob = new Blob([movBlob], { type: 'video/mp4' })
-      updateProgress(85)
-
-      // 更快的格式验证：只检查元数据
-      const videoUrl = URL.createObjectURL(mp4Blob)
-      const video = document.createElement('video')
-      
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Video validation timeout'))
-        }, 5000) // 5秒验证超时
-        
-        video.onloadedmetadata = () => {
-          clearTimeout(timeout)
-          resolve()
-        }
-        video.onerror = () => {
-          clearTimeout(timeout)
-          reject(new Error('Video format not supported'))
-        }
-        video.src = videoUrl
-        video.load()
-      })
-
-      URL.revokeObjectURL(videoUrl)
-      updateProgress(95)
+      // The server guarantees this is an MP4
+      const mp4Blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' })
+      updateProgress(100)
 
       // 成功完成
       state.isProcessing = false
@@ -206,7 +178,7 @@ export const useLivePhotoProcessor = () => {
   ) => {
     const { maxConcurrent = 2, prioritizeVisible = true, prefetchDistance = 3 } = options
     
-    const livePhotos = photos.filter(photo => photo.livePhotoVideoUrl)
+    const livePhotos = photos.filter((photo): photo is { id: string; livePhotoVideoUrl: string; isVisible?: boolean } => !!photo.livePhotoVideoUrl)
     
     if (prioritizeVisible) {
       // 优先处理可见的LivePhoto

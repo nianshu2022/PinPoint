@@ -66,7 +66,7 @@ export class OpenListStorageProvider implements StorageProvider {
     return key.startsWith('/') ? key : `/${key}`
   }
 
-  async create(key: string, fileBuffer: Buffer, contentType?: string): Promise<StorageObject> {
+  async create(key: string, fileData: Buffer | import('node:stream').Readable | import('node:stream/web').ReadableStream, contentType?: string): Promise<StorageObject> {
     const rootedKey = this.withRoot(key)
     const absoluteKey = this.toAbsolutePath(rootedKey)
     const uploadPath = this.config.uploadEndpoint || '/api/fs/put'
@@ -75,10 +75,10 @@ export class OpenListStorageProvider implements StorageProvider {
       method: 'PUT',
       headers: {
         'Content-Type': contentType || 'application/octet-stream',
-        'Content-Length': String(fileBuffer.length),
         'File-Path': encodeURIComponent(absoluteKey),
+        ...(Buffer.isBuffer(fileData) ? { 'Content-Length': String(fileData.length) } : {}),
       },
-      body: new Uint8Array(fileBuffer),
+      body: Buffer.isBuffer(fileData) ? new Uint8Array(fileData) : (fileData as any),
     })
 
     if (!resp.ok) {
@@ -99,7 +99,7 @@ export class OpenListStorageProvider implements StorageProvider {
     return (
       meta || {
         key: rootedKey,
-        size: fileBuffer.length,
+        size: Buffer.isBuffer(fileData) ? fileData.length : undefined,
         lastModified: new Date(),
       }
     )

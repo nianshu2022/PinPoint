@@ -319,6 +319,17 @@ export class WorkerPool {
   }
 
   /**
+   * 批量添加任务到队列（通过任意一个工作器）
+   */
+  async addTasks(tasks: Array<{ payload: any; options?: any }>): Promise<void> {
+    const worker = this.getFirstWorker()
+    if (!worker) {
+      throw new Error('No workers available')
+    }
+    return await worker.addTasks(tasks)
+  }
+
+  /**
    * 获取任务状态
    * @param taskId 任务ID
    * @returns 任务状态信息

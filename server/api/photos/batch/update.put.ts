@@ -201,38 +201,42 @@ export default eventHandler(async (event) => {
       .where(inArray(tables.photos.id, payload.photoIds))
       .run()
 
-    // 2. Queue background tasks
+    // 2. Queue background tasks via batch insertion
     const workerPool = globalThis.__workerPool
     if (workerPool) {
+      const batchedTasks = []
+
       for (const photo of photos) {
         // Queue reverse geocoding if location changed
         if (payload.location && payload.location.latitude) {
-          workerPool
-            .addTask(
-              {
-                type: 'photo-reverse-geocoding',
-                photoId: photo.id,
-                latitude: payload.location.latitude,
-                longitude: payload.location.longitude,
-              },
-              { priority: 1 },
-            )
-            .catch((e) => console.warn('Failed to queue reverse geocoding', e))
+          batchedTasks.push({
+            payload: {
+              type: 'photo-reverse-geocoding',
+              photoId: photo.id,
+              latitude: payload.location.latitude,
+              longitude: payload.location.longitude,
+            },
+            options: { priority: 1 }
+          })
         }
 
         // Queue EXIF update
-        workerPool
-          .addTask(
-            {
-              type: 'write-exif',
-              photoId: photo.id,
-              updates: exifUpdates,
-            },
-            { priority: 0 }, // Low priority
-          )
-          .catch((e) => console.warn('Failed to queue exif update', e))
+        batchedTasks.push({
+          payload: {
+            type: 'write-exif',
+            photoId: photo.id,
+            updates: exifUpdates,
+          },
+          options: { priority: 0 }
+        })
 
         results.success++
+      }
+
+      if (batchedTasks.length > 0) {
+        await workerPool.addTasks(batchedTasks).catch((e: Error) => {
+          console.warn('Failed to dispatch batch tasks', e)
+        })
       }
     }
   } catch (error) {

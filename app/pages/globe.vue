@@ -9,16 +9,10 @@ useHead({
 const route = useRoute()
 const router = useRouter()
 
-const { photos } = usePhotos()
+const { data: locationsData } = useFetch('/api/photos/locations')
 
 const photosWithLocation = computed(() => {
-  return photos.value.filter(
-    (photo) =>
-      photo.latitude !== null &&
-      photo.longitude !== null &&
-      photo.latitude !== undefined &&
-      photo.longitude !== undefined,
-  )
+  return (locationsData.value || []) as any[]
 })
 
 const currentClusterPointId = ref<string | null>(null)

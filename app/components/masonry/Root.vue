@@ -20,6 +20,7 @@ const displayPhotos = computed(() => {
 })
 
 const { currentPhotoIndex, isViewerOpen } = storeToRefs(useViewerState())
+const loadMorePhotos = inject<() => Promise<void>>('loadMorePhotos')
 
 const FIRST_SCREEN_ITEMS_COUNT = 50
 const MASONRY_GAP = 4
@@ -295,10 +296,19 @@ const updateDateRange = () => {
   }
 }
 
-const handleScroll = () => {
+const handleScroll = useDebounceFn(() => {
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop
   showFloatingActions.value = scrollTop > 500
-}
+
+  // 监听触底，预加载（距底部 800px 时拉取）
+  const scrollHeight = document.documentElement.scrollHeight
+  const clientHeight = document.documentElement.clientHeight
+  if (scrollHeight - scrollTop - clientHeight < 800) {
+    if (loadMorePhotos) {
+      loadMorePhotos()
+    }
+  }
+}, 150)
 
 const scrollToTop = () => {
   window.scrollTo({

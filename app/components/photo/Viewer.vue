@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { motion, AnimatePresence, useDomRef } from 'motion-v'
+import { motion, AnimatePresence } from 'motion-v'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Navigation, Keyboard, Virtual } from 'swiper/modules'
 import type { Swiper as SwiperType } from 'swiper'
@@ -90,7 +90,8 @@ const isLivePhotoMuted = ref(true)
 const touchCount = ref(0)
 const livePhotoVideoBlob = ref<Blob | null>(null)
 const livePhotoVideoBlobUrl = ref<string | null>(null)
-const livePhotoVideoRef = useDomRef()
+const livePhotoVideoRef = ref<any>(null)
+const getLivePhotoVideoElement = () => livePhotoVideoRef.value?.$el ?? livePhotoVideoRef.value as HTMLVideoElement | null
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 
 // Import LivePhoto processor
@@ -275,9 +276,10 @@ const processCurrentLivePhoto = async () => {
 }
 
 const playLivePhotoVideo = () => {
-  if (!livePhotoVideoRef.value || !livePhotoVideoBlobUrl.value) return
+  const videoEl = getLivePhotoVideoElement()
+  if (!videoEl || !livePhotoVideoBlobUrl.value) return
 
-  livePhotoVideoRef.value.currentTime = 0
+  videoEl.currentTime = 0
   isLivePhotoPlaying.value = true
 
   // Provide haptic feedback on mobile when starting playback
@@ -285,7 +287,7 @@ const playLivePhotoVideo = () => {
     navigator.vibrate(50) // Short vibration for start
   }
 
-  livePhotoVideoRef.value?.play().catch((error: any) => {
+  videoEl.play().catch((error: any) => {
     console.warn('Failed to play LivePhoto video in viewer:', error)
     isLivePhotoPlaying.value = false
   })
@@ -293,10 +295,11 @@ const playLivePhotoVideo = () => {
 
 const stopLivePhotoVideo = () => {
   const wasPlaying = isLivePhotoPlaying.value
+  const videoEl = getLivePhotoVideoElement()
 
-  if (livePhotoVideoRef.value && !livePhotoVideoRef.value.paused) {
-    livePhotoVideoRef.value?.pause()
-    livePhotoVideoRef.value.currentTime = 0
+  if (videoEl && !videoEl.paused) {
+    videoEl.pause()
+    videoEl.currentTime = 0
 
     // Provide haptic feedback on mobile when manually stopping playback
     if (isMobile.value && wasPlaying && 'vibrate' in navigator) {
@@ -406,8 +409,9 @@ const handleLivePhotoVideoEnded = () => {
   }
 
   // Video ended naturally, keep it visible but reset to beginning
-  if (livePhotoVideoRef.value) {
-    livePhotoVideoRef.value.currentTime = 0
+  const videoEl = getLivePhotoVideoElement()
+  if (videoEl) {
+    videoEl.currentTime = 0
   }
 }
 
@@ -700,10 +704,6 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                     <!-- Main Image -->
                     <ProgressiveImage
                       class="h-full w-full object-contain transition-opacity duration-400"
-                      :class="{
-                        'opacity-0':
-                          isLivePhotoPlaying && currentPhoto?.isLivePhoto,
-                      }"
                       :loading-indicator-ref="loadingIndicatorRef || null"
                       :is-current-image="index === currentIndex"
                       :src="photo.originalUrl!"
@@ -742,22 +742,13 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                     />
 
                     <!-- LivePhoto Video -->
-                    <motion.video
+                    <motion.div
                       v-if="
                         photo.isLivePhoto &&
                         index === currentIndex &&
                         livePhotoVideoBlobUrl
                       "
-                      :ref="
-                        (el) => {
-                          if (index === currentIndex) livePhotoVideoRef = el
-                        }
-                      "
-                      :src="livePhotoVideoBlobUrl"
-                      class="absolute inset-0 w-full h-full object-contain pointer-events-none select-none touch-none"
-                      :muted="isLivePhotoMuted"
-                      playsinline
-                      preload="metadata"
+                      class="absolute inset-0 w-full h-full pointer-events-none select-none touch-none"
                       :initial="{ opacity: 0 }"
                       :animate="{
                         opacity: isLivePhotoPlaying ? 1 : 0,
@@ -767,9 +758,22 @@ const swiperModules = [Navigation, Keyboard, Virtual]
                         ease: [0.25, 0.1, 0.25, 1],
                         delay: isLivePhotoPlaying ? 0.1 : 0,
                       }"
-                      @ended="handleLivePhotoVideoEnded"
-                      @contextmenu.prevent=""
-                    />
+                    >
+                      <video
+                        :ref="
+                          (el) => {
+                            if (index === currentIndex) livePhotoVideoRef = el
+                          }
+                        "
+                        :src="livePhotoVideoBlobUrl"
+                        class="w-full h-full object-contain"
+                        :muted="isLivePhotoMuted"
+                        playsinline
+                        preload="metadata"
+                        @ended="handleLivePhotoVideoEnded"
+                        @contextmenu.prevent=""
+                      />
+                    </motion.div>
 
                     <!-- 缩放倍率提示 -->
                     <AnimatePresence>

@@ -34,78 +34,21 @@ export function usePhotoFilters() {
   // 使用全局筛选状态
   const activeFilters = globalFilters
 
-  // 计算可用的筛选选项及其数量
-  const filterStats = computed((): FilterStats => {
-    const stats: FilterStats = {
-      tags: new Map(),
-      cameras: new Map(),
-      lenses: new Map(),
-      cities: new Map(),
-      ratings: new Map()
-    }
-
-    photos.value.forEach(photo => {
-      // 标签统计
-      if (photo.tags && Array.isArray(photo.tags)) {
-        photo.tags.forEach(tag => {
-          stats.tags.set(tag, (stats.tags.get(tag) || 0) + 1)
-        })
-      }
-
-      // 相机统计 (从 EXIF 获取)
-      if (photo.exif?.Make && photo.exif?.Model) {
-        const camera = `${photo.exif.Make} ${photo.exif.Model}`
-        stats.cameras.set(camera, (stats.cameras.get(camera) || 0) + 1)
-      }
-
-      // 镜头统计 (从 EXIF 获取)
-      if (photo.exif?.LensMake && photo.exif?.LensModel) {
-        const lens = `${photo.exif.LensMake} ${photo.exif.LensModel}`
-        stats.lenses.set(lens, (stats.lenses.get(lens) || 0) + 1)
-      } else if (photo.exif?.LensModel) {
-        const lens = photo.exif.LensModel
-        stats.lenses.set(lens, (stats.lenses.get(lens) || 0) + 1)
-      }
-
-      // 城市统计
-      if (photo.city) {
-        stats.cities.set(photo.city, (stats.cities.get(photo.city) || 0) + 1)
-      }
-
-      // 评分统计 (从 EXIF Rating 获取)
-      if (photo.exif?.Rating && photo.exif.Rating > 0) {
-        const rating = photo.exif.Rating
-        stats.ratings.set(rating, (stats.ratings.get(rating) || 0) + 1)
-      }
+  // 使用 useFetch 从后端安全异步获取完整的聚合数据（解除分页显示断层问题）
+  const { data: globalStats } = useFetch('/api/photos/aggregations', {
+    lazy: true,
+    server: false,
+    default: () => ({
+      tags: [],
+      cameras: [],
+      lenses: [],
+      cities: [],
+      ratings: []
     })
-
-    return stats
   })
 
   // 获取排序后的筛选选项
-  const availableFilters = computed(() => {
-    return {
-      tags: Array.from(filterStats.value.tags.entries())
-        .sort((a, b) => b[1] - a[1]) // 按数量降序排列
-        .map(([tag, count]) => ({ label: tag, count })),
-
-      cameras: Array.from(filterStats.value.cameras.entries())
-        .sort((a, b) => a[0].localeCompare(b[0])) // 按名称字母顺序排列
-        .map(([camera, count]) => ({ label: camera, count })),
-
-      lenses: Array.from(filterStats.value.lenses.entries())
-        .sort((a, b) => a[0].localeCompare(b[0])) // 按名称字母顺序排列
-        .map(([lens, count]) => ({ label: lens, count })),
-
-      cities: Array.from(filterStats.value.cities.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([city, count]) => ({ label: city, count })),
-
-      ratings: Array.from(filterStats.value.ratings.entries())
-        .sort((a, b) => b[0] - a[0]) // 按评分降序排列
-        .map(([rating, count]) => ({ label: rating, count })),
-    }
-  })
+  const availableFilters = computed(() => globalStats.value)
 
   // 计算已选择的筛选项数量
   const selectedCounts = computed(() => {
@@ -244,7 +187,8 @@ export function usePhotoFilters() {
       lenses: [],
       cities: [],
       ratings: 0,
-      search: ''
+      search: '',
+      searchField: 'all'
     }
   }
 

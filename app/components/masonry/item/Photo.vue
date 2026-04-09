@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatCameraInfo } from '~/utils/camera'
-import { motion, useDomRef } from 'motion-v'
+import { motion } from 'motion-v'
 
 interface Props {
   photo: Photo
@@ -19,7 +19,8 @@ const { gtag } = useGtag()
 
 const isLoading = ref(true)
 const photoRef = ref<HTMLElement>()
-const videoRef = useDomRef()
+const videoRef = ref<any>(null)
+const getVideoElement = () => videoRef.value?.$el ?? videoRef.value as HTMLVideoElement | null
 const isVisible = ref(false)
 const containerWidth = ref(0)
 
@@ -124,9 +125,10 @@ const handleMouseLeave = () => {
   if (isMobile.value) return
 
   isHovering.value = false
-  if (videoRef.value && !videoRef.value.paused) {
-    videoRef.value.pause()
-    videoRef.value.currentTime = 0
+  const videoEl = getVideoElement()
+  if (videoEl && !videoEl.paused) {
+    videoEl.pause()
+    videoEl.currentTime = 0
   }
 
   // Use a slight delay for smoother transition when mouse leaves
@@ -139,15 +141,16 @@ const handleMouseLeave = () => {
 }
 
 const playLivePhotoVideo = () => {
-  if (!videoRef.value || !videoBlobUrl.value) return
+  const videoEl = getVideoElement()
+  if (!videoEl || !videoBlobUrl.value) return
 
   // 预加载视频以确保流畅播放
-  if (videoRef.value.readyState < 2) {
-    videoRef.value.load()
+  if (videoEl.readyState < 2) {
+    videoEl.load()
   }
 
   // 确保视频从头开始播放
-  videoRef.value.currentTime = 0
+  videoEl.currentTime = 0
 
   // 添加播放前的准备动画
   isVideoPlaying.value = true
@@ -159,20 +162,21 @@ const playLivePhotoVideo = () => {
 
   // 延迟播放以确保动画状态已设置
   nextTick(() => {
-    if (!videoRef.value || !isVideoPlaying.value) return
+    const nextVideoEl = getVideoElement()
+    if (!nextVideoEl || !isVideoPlaying.value) return
 
     // 设置视频播放属性
-    videoRef.value.muted = true // 确保静音播放
-    videoRef.value.playsInline = true
+    nextVideoEl.muted = true // 确保静音播放
+    nextVideoEl.playsInline = true
 
     // 立即尝试播放，使用更好的错误处理
-    const playPromise = videoRef.value.play()
+    const playPromise = nextVideoEl.play()
 
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
           // 播放成功，确保状态正确
-          if (videoRef.value && !videoRef.value.paused) {
+          if (nextVideoEl && !nextVideoEl.paused) {
             // 视频播放成功，状态已正确设置
           }
         })
@@ -183,11 +187,12 @@ const playLivePhotoVideo = () => {
           // 如果是因为用户交互策略导致的失败，尝试重新加载
           if (error.name === 'NotAllowedError') {
             console.log('Video play blocked by browser policy, retrying...')
-            if (videoRef.value) {
-              videoRef.value.load()
+            if (nextVideoEl) {
+              nextVideoEl.load()
               setTimeout(() => {
-                if (videoRef.value && isVideoPlaying.value) {
-                  const retryPromise = videoRef.value.play()
+                const retryVideoEl = getVideoElement()
+                if (retryVideoEl && isVideoPlaying.value) {
+                  const retryPromise = retryVideoEl.play()
                   if (retryPromise !== undefined) {
                     retryPromise.catch(() => {
                       isVideoPlaying.value = false
@@ -283,9 +288,10 @@ const cancelLivePhotoTouch = () => {
   }
 
   // Stop video playback
-  if (videoRef.value && !videoRef.value.paused) {
-    videoRef.value.pause()
-    videoRef.value.currentTime = 0
+  const videoEl = getVideoElement()
+  if (videoEl && !videoEl.paused) {
+    videoEl.pause()
+    videoEl.currentTime = 0
 
     // Provide haptic feedback on mobile when manually stopping playback
     if (isMobile.value && wasPlaying && 'vibrate' in navigator) {
@@ -348,8 +354,9 @@ const processLivePhotoWhenVisible = async () => {
       isVideoLoaded.value = true
 
       // 预热视频元素以提高播放性能
-      if (videoRef.value) {
-        videoRef.value.load()
+      const videoEl = getVideoElement()
+      if (videoEl) {
+        videoEl.load()
       }
     }
   } catch (error) {
@@ -528,41 +535,41 @@ onUnmounted(() => {
         />
 
         <!-- LivePhoto video with enhanced motion transition -->
-        <motion.video
-          v-if="photo.isLivePhoto && videoBlobUrl"
-          ref="videoRef"
-          :src="videoBlobUrl"
-          class="absolute inset-0 w-full h-full object-cover"
-          :class="{ 'select-none pointer-events-none': isVideoPlaying }"
-          muted
-          playsinline
-          preload="metadata"
-          :initial="{
-            opacity: 0,
-            scale: 1.02,
-          }"
-          :animate="{
-            opacity: isVideoPlaying ? 1 : 0,
-            scale: isVideoPlaying ? 1 : 1.02,
-          }"
-          :transition="{
-            duration: isVideoPlaying ? 0.3 : 0.2,
-            ease: isVideoPlaying
-              ? [0.23, 1, 0.32, 1]
-              : [0.25, 0.46, 0.45, 0.94],
-            delay: isVideoPlaying ? 0.05 : 0,
-          }"
-          @ended="handleVideoEnded"
-          @loadeddata="
-            () => {
-              // 视频加载完成后预热
-              if (videoRef && !isVideoPlaying) {
-                videoRef.currentTime = 0.1
-                videoRef.pause()
+        <motion.div
+           v-if="photo.isLivePhoto && videoBlobUrl"
+           class="absolute inset-0 w-full h-full pointer-events-none"
+           :initial="{ opacity: 0, scale: 1.02 }"
+           :animate="{
+             opacity: isVideoPlaying ? 1 : 0,
+             scale: isVideoPlaying ? 1 : 1.02,
+           }"
+           :transition="{
+             duration: isVideoPlaying ? 0.3 : 0.2,
+             ease: isVideoPlaying ? [0.23, 1, 0.32, 1] : [0.25, 0.46, 0.45, 0.94],
+             delay: isVideoPlaying ? 0.05 : 0,
+           }"
+        >
+          <video
+            ref="videoRef"
+            :src="videoBlobUrl"
+            class="w-full h-full object-cover"
+            :class="{ 'select-none pointer-events-none': isVideoPlaying }"
+            muted
+            playsinline
+            preload="metadata"
+            @ended="handleVideoEnded"
+            @loadeddata="
+              () => {
+                // 视频加载完成后预热
+                const el = getVideoElement()
+                if (el && !isVideoPlaying) {
+                  el.currentTime = 0.1
+                  el.pause()
+                }
               }
-            }
-          "
-        />
+            "
+          />
+        </motion.div>
       </div>
 
       <!-- Overlay -->

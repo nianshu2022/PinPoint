@@ -22,6 +22,7 @@ import {
 } from '../location/geocoding'
 import { findLivePhotoVideoForImage } from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
+import { transcodeMovToMp4 } from '../video/transcoder'
 import { getStorageManager } from '~~/server/plugins/3.storage'
 
 export class QueueManager {
@@ -96,6 +97,27 @@ export class QueueManager {
       .returning({ id: tables.pipelineQueue.id })
       .get()
     return result.id
+  }
+
+  /**
+   * 批量添加任务到队列
+   * @param tasks 任务数组包括payload和options
+   */
+  async addTasks(tasks: Array<{ payload: any; options?: any }>): Promise<void> {
+    if (!tasks.length) return
+    
+    const db = useDB()
+    const values = tasks.map(t => ({
+      payload: t.payload,
+      ...(t.options || {})
+    }))
+
+    // SQLite chunked inserts if large amount
+    const chunkSize = 200
+    for (let i = 0; i < values.length; i += chunkSize) {
+      const chunk = values.slice(i, i + chunkSize)
+      await db.insert(tables.pipelineQueue).values(chunk).run()
+    }
   }
 
   /**
@@ -358,15 +380,35 @@ export class QueueManager {
           if (!motionPhotoInfo?.isMotionPhoto) {
             const livePhotoVideo = await findLivePhotoVideoForImage(storageKey)
             if (livePhotoVideo) {
+              let finalVideoKey = livePhotoVideo.videoKey
+              
+              // HEVC MOV transcoding to MP4 H.264
+              if (finalVideoKey.toLowerCase().endsWith('.mov')) {
+                this.logger.info(`[${taskId}:in-stage] transcoding live photo to mp4: ${finalVideoKey}`)
+                const videoBuffer = await storageProvider.get(finalVideoKey)
+                if (videoBuffer) {
+                  try {
+                    const mp4Buffer = await transcodeMovToMp4(videoBuffer, this.logger)
+                    const mp4Key = finalVideoKey.replace(/\.mov$/i, '.mp4')
+                    // Upload the new transcoded mp4 file
+                    await storageProvider.create(mp4Key, mp4Buffer, 'video/mp4')
+                    // Delete old unsupported mov file to free up space
+                    await storageProvider.delete(finalVideoKey)
+                    finalVideoKey = mp4Key
+                    this.logger.info(`[${taskId}:in-stage] transcoding finished, new key: ${mp4Key}`)
+                  } catch (e) {
+                    this.logger.error(`[${taskId}:in-stage] failed to transcode live photo, keeping original:`, e)
+                  }
+                }
+              }
+
               livePhotoInfo = {
                 isLivePhoto: 1,
-                livePhotoVideoUrl: storageProvider.getPublicUrl(
-                  livePhotoVideo.videoKey,
-                ),
-                livePhotoVideoKey: livePhotoVideo.videoKey,
+                livePhotoVideoUrl: storageProvider.getPublicUrl(finalVideoKey),
+                livePhotoVideoKey: finalVideoKey,
               }
               this.logger.info(
-                `[${taskId}:in-stage] found LivePhoto video: ${livePhotoVideo.videoKey}`,
+                `[${taskId}:in-stage] localized LivePhoto video: ${finalVideoKey}`,
               )
             }
           } else {

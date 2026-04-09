@@ -1,4 +1,5 @@
 import type { StorageConfig } from '.'
+import type { Readable } from 'node:stream'
 
 export interface StorageObject {
   key: string
@@ -18,7 +19,7 @@ export interface StorageProvider {
   config?: StorageConfig
   create(
     key: string,
-    fileBuffer: Buffer,
+    fileData: Buffer | Readable | ReadableStream,
     contentType?: string,
   ): Promise<StorageObject>
   delete(key: string): Promise<void>
