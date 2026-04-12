@@ -23,7 +23,9 @@ export default defineNuxtConfig({
     '@nuxtjs/i18n',
     'nuxt-mapbox',
     'nuxt-maplibre',
-    'nuxt-og-image',
+    // nuxt-og-image 依赖 satori + @resvg/resvg-js (WASM)，在 Cloudflare Workers 中
+    // 会使 bundle 超过 25MB 限制，故 CF 环境下禁用
+    ...(process.env.CF_PAGES ? [] : ['nuxt-og-image']),
     'nuxt-gtag',
   ],
 
@@ -175,12 +177,18 @@ export default defineNuxtConfig({
                     'osx-temperature-sensor',
                     // SQLite（使用 Cloudflare D1 替代）
                     'better-sqlite3',
-                    // FFmpeg（服务器端视频处理，CF 不支持）
+                    // 服务端 FFmpeg（CF 不支持原生二进制）
                     'fluent-ffmpeg',
                     'ffprobe-static',
                     '@ffmpeg-installer/ffmpeg',
                     '@ffmpeg-installer/linux-x64',
-                    // 其他可能的原生模块
+                    // HEIC/图像格式处理（含 WASM，CF 不支持）
+                    'heic-to',
+                    // OG Image 渲染依赖（即使禁用了模块，防止间接引入）
+                    '@resvg/resvg-js',
+                    'resvg-js',
+                    'yoga-wasm-web',
+                    // macOS 原生模块
                     'fsevents',
                   ]
                   if (
