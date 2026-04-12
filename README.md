@@ -17,292 +17,166 @@
 - **瀑布流布局**：美观且响应式的照片展示
 - **地图视图**：在地图上探索您的照片足迹
 - **EXIF 解析**：自动提取并展示拍摄参数
-- **S3 兼容**：支持各类 S3 兼容对象存储 (AWS, 腾讯云 COS, MinIO 等)
-- **高性能**：基于服务端渲染 (SSR) 和图片优化技术
-- **隐私优先**：完全自托管，数据掌握在自己手中
+- **S3 兼容**：支持各类 S3 兼容对象存储 (AWS, 腾讯云 COS, MinIO 等) 以及本地存储
+- **多端展示**：智能生成缩略图，针对手机等小规模屏幕有针对性适配
+- **动态排版**：完全自托管，数据掌握在自己手中
 
-### 🖼️ 强大的图片管理
+## ☁️ 部署指南
 
-- **在线管理照片** - 通过 Web 界面轻松管理和浏览照片
-- **探索地图** - 在地图上浏览照片拍摄位置
-- **智能 EXIF 解析** - 自动提取拍摄时间、地理位置、相机参数等元数据
-- **地理位置识别** - 自动识别(Reverse Geocoding)照片拍摄地点
-- **多格式支持** - 支持 JPEG、PNG、HEIC/HEIF 等主流图片格式
-- **智能缩略图** - 基于 ThumbHash 技术的高效缩略图生成
+PinPoint 在架构设计上考虑了多样化的宿主环境，为您提供**两种互不冲突的部署方案**。您可以根据自己的服务器条件选择最适合的一种：
 
-### 🔧 现代技术栈
+### 方案 A: Cloudflare (基于 NuxtHub) 🌟 推荐
 
-- **Nuxt 4** - 基于最新的 Nuxt 框架，提供 SSR/SSG 支持
-- **TypeScript** - 完整的类型安全保障
-- **TailwindCSS** - 现代化的 CSS 框架
-- **Drizzle ORM** - 类型安全的数据库 ORM
+这是 Serverless 时代的最佳实践，将项目部署到 Cloudflare 全球边缘节点上。**免服务器、免维护、速度快，且能充分利用 Cloudflare 的免费额度及 D1 数据库资源。**
 
-### ☁️ 灵活的存储方案
+#### 操作步骤：通过 GitHub Actions 自动部署
 
-- **多存储后端** - 支持 S3 兼容存储、本地文件系统
-- **CDN 加速** - 可配置 CDN 地址加速图片访问
+本项目内置了自动化工作流，你只需配置一次即可享受每次 Git Push 的自动发布：
 
-## 🐳 部署
+1. **Fork 本代码库** 到你个人的 GitHub 账号下。
+2. 登录 [NuxtHub Admin](https://admin.hub.nuxt.com/)，授权 GitHub 登录，并在面板中关联你刚刚 Fork 的项目，获取唯一的 `Project Key`。
+3. 回到你 Fork 后的 GitHub 仓库，依次点击页面上方的 **Settings -> Secrets and variables -> Actions**。
+4. 点击 **New repository secret**，名称填入 `NUXT_HUB_PROJECT_KEY`，内容填入刚刚获取的 Key。
+5. （可选）如果你需要设置相关的环境变量，也可以在 Cloudflare 或 NuxtHub 后台中设置相应的 Environment Variables（参考下面的[环境变量配置](#-环境变量配置)）。
+6. **大功告成！** 只要你的仓库里有新的代码合并到 `main` 分支，GitHub Actions 就会自动打包并将最新版部署到 Cloudflare 上。
 
-推荐使用 Docker 部署。
+*(注：如果你是开发者，也可以在本地 `clone` 后直接执行 `npx nuxthub deploy` 进行手动命令行发布)*
 
-创建 `.env` 文件并配置。
+---
 
-下面是**最小化配置**示例：
+### 方案 B: Docker 自托管 (适用于 VPS, NAS 等)
 
-```bash
-# 管理员邮箱（必须）
-CFRAME_ADMIN_EMAIL=
-# 管理员用户名（可选，默认 PinPoint）
-CFRAME_ADMIN_NAME=
-# 管理员密码（可选，默认 CF1234@!）
-CFRAME_ADMIN_PASSWORD=
+如果您拥有自己的云服务器（VPS）或群晖/Nas 这类支持容器架构的设备，可以采用原汁原味的本地部署方案（使用内置 SQLite 和本地存储卷）。
 
-# 站点信息（均可选）
-NUXT_PUBLIC_APP_TITLE=
-NUXT_PUBLIC_APP_SLOGAN=
-NUXT_PUBLIC_APP_AUTHOR=
-NUXT_PUBLIC_APP_AVATAR_URL=
+考虑到部署极简原则，本项目也准备好了 Docker 端的 Action 预设配置。
 
-# 地图提供器 (maplibre/mapbox)
-NUXT_PUBLIC_MAP_PROVIDER=maplibre
-# 使用 MapLibre 需要 MapTiler 访问令牌
-NUXT_PUBLIC_MAP_MAPLIBRE_TOKEN=
-# 使用 Mapbox 需要 Mapbox 访问令牌
-NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN=
+#### 操作流程：使用容器构建发布
 
-# Mapbox 无域名限制令牌（反向地理编码，可选）
-NUXT_MAPBOX_ACCESS_TOKEN=
+**方式 1：使用别人打包好的云端镜像（最简单）**
+你可以直接使用 GitHub Container Registry (ghcr.io) 中的镜像启动拉取：
 
-# 存储提供者（local、s3 或 openlist）
-NUXT_STORAGE_PROVIDER=local
-NUXT_PROVIDER_LOCAL_PATH=/app/data/storage
-
-# 会话密码（必须，32 位随机字符串）
-NUXT_SESSION_PASSWORD=
-```
-
-### Docker
-
-一行命令启动：
-
-```bash
-docker build -t pinpoint .
-docker run -d --name pinpoint -p 3000:3000 -v $(pwd)/data:/app/data --env-file .env pinpoint
-```
-
-### Docker Compose（推荐）
-
-创建 `docker-compose.yml`：
-
+新建一个 `docker-compose.yml`：
 ```yaml
 services:
   pinpoint:
-    build: .
+    # 替换下面的 [用户名] 为 ghcr.io 上仓库所有者的名字，例如 nianshu2022
+    image: ghcr.io/nianshu2022/pinpoint:latest
     container_name: pinpoint
     restart: unless-stopped
     ports:
       - '3000:3000'
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data   # 映射数据库（SQLite）和本地照片的持久化储存位置
     env_file:
       - .env
 ```
+随后准备好环境变量文件 `.env`（见下节），执行 `docker-compose up -d` 即可。
 
-启动：
+**方式 2：自行编译构建镜像**
+如果你克隆了代码到服务器：
+```bash
+docker build -t pinpoint .
+docker run -d --name pinpoint -p 3000:3000 -v $(pwd)/data:/app/data --env-file .env pinpoint
+```
+
+## ⚙️ 环境变量配置
+
+请在部署环境中（Docker 是 `.env` 文件，Cloudflare 是环境变量面板）提供以下配置值，下面提供的是**最小化配置要求**：
 
 ```bash
-docker-compose up -d
+# ------------------ 必需配置 ------------------
+# 会话密码（必须，强烈建议设置 32 位以上随机字符串，用于给 Session 加密）
+NUXT_SESSION_PASSWORD=
+
+# ------------------ 可选配置 ------------------
+# 初代管理员邮箱和账户（首次启动初始化用）
+CFRAME_ADMIN_EMAIL=admin@example.com
+CFRAME_ADMIN_NAME=Admin
+CFRAME_ADMIN_PASSWORD=your_password_here
+
+# 地图提供器 (如果希望在地图上显示脚印，需配置以下二者之一)
+# 选项: maplibre / mapbox
+NUXT_PUBLIC_MAP_PROVIDER=maplibre
+NUXT_PUBLIC_MAP_MAPLIBRE_TOKEN=
+NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN=
+# Mapbox 无域名限制令牌（用于逆向地理编码）
+NUXT_MAPBOX_ACCESS_TOKEN=
+
+# 存储提供者（支持 local、s3）缺省为 local
+NUXT_STORAGE_PROVIDER=local
+# 当使用本地存储时：指定挂载存储位置
+NUXT_PROVIDER_LOCAL_PATH=/app/data/storage
 ```
 
 ## 📖 使用指南
 
-> 如未配置 `CFRAME_ADMIN_EMAIL` 和 `CFRAME_ADMIN_PASSWORD`，默认账号如下：
->
-> - 邮箱: `admin@chronoframe.com`
-> - 密码: `CF1234@!`
+### 登录与上传
 
-### 登录到控制台
+1. **登录控制台**：配置完毕后，如果未设定 Admin 变量，默认内置了管理员账号（邮箱: `admin@chronoframe.com`, 密码: `CF1234@!`）。请在右侧点击头像进入后台，并尽早修改自己的密码。
+2. **上传照片**：访问仪表板 `/dashboard`。
+3. 在 `Photos` 页面中选择图片点击上传，或直接拖拽文件进区域。
+4. **智能处理**：系统将会自动帮你进行缩略生成、EXIF 提取（相机型号、光圈快门等）并去逆推反向所在地的字符串名！
 
-1. 点击头像跳转到登录页面，可以使用账号密码或 GitHub 登录
+### 支持的特殊格式
+- 支持常规照片 (JPEG, PNG)。
+- 兼容 Apple 等移动设备的 **HEIC / HEIF** 高效格式。
+- （针对自托管版服务）若搭配传入正确的 `*.mov` 甚至可以触发解析为 Live Photo 实况照片展示！
 
-### 上传照片
-
-1. 访问仪表板页面 `/dashboard`
-2. 在 `Photos` 页面中选择图片并点击上传（支持批量上传和拖拽上传）
-3. 系统将自动提取 EXIF 信息、生成缩略图并逆编码照片地理位置
-
-## 📸 截图
+## 📸 体验截图
 
 ![Gallery](./docs/images/screenshot1.png)
 ![Photo Detail](./docs/images/screenshot2.png)
 ![Map Explore](./docs/images/screenshot3.png)
 ![Dashboard](./docs/images/screenshot4.png)
 
-## 🛠️ 开发
+## 🛠️ 开源参与与本地开发
 
 ### 环境要求
 
 - Node.js 18+
-- pnpm 9.0+
+- pnpm 10.0+
 
-### 安装依赖
+### 开发准备
 
 ```bash
-# 使用 pnpm (推荐)
+# 克隆代码
+git clone https://github.com/nianshu2022/PinPoint.git
+cd PinPoint
+
+# 安装依赖
 pnpm install
 
-# 或使用其他包管理器
-npm install
-yarn install
-```
-
-### 配置环境变量
-
-复制环境变量模板并根据需要配置：
-
-```bash
+# 配置开发环境变量 (如需)
 cp .env.example .env
-```
 
-### 数据库初始化
-
-```bash
-# 2. 生成数据库迁移文件(可选)
+# 初始化数据库
 pnpm db:generate
 
-# 3. 执行数据库迁移
-pnpm db:migrate
-```
-
-### 启动开发服务器
-
-```bash
+# 启动！
 pnpm dev
 ```
-
-应用将在 `http://localhost:3000` 启动。
-
-### 项目结构
-
-```
-pinpoint/
-├── app/                    # Nuxt 应用
-│   ├── components/         # 组件
-│   ├── pages/              # 页面路由
-│   ├── composables/        # 组合式函数
-│   └── stores/             # Pinia 状态管理
-├── packages/
-│   └── webgl-image/        # WebGL 图片查看器
-├── server/
-│   ├── api/                # API 路由
-│   ├── database/           # 数据库 schema 和迁移
-│   └── services/           # 业务逻辑服务
-└── shared/                 # 共享类型和工具
-```
-
-### 构建命令
-
-```bash
-# 开发模式 (包含依赖包构建)
-pnpm dev
-
-# 仅构建依赖包
-pnpm build:deps
-
-# 构建生产版本
-pnpm build
-
-# 数据库操作
-pnpm db:generate    # 生成迁移文件
-pnpm db:migrate     # 执行迁移
-
-# 预览生产版本
-pnpm preview
-```
-
-## 🤝 贡献
-
-欢迎贡献代码！请确保：
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 开启 Pull Request
-
-### 开发规范
-
-- 使用 TypeScript 进行类型安全的开发
-- 遵循 ESLint 和 Prettier 代码规范
-- 更新相关文档
-
-## 📄 许可证
-
-本项目基于 [MIT 许可证](LICENSE) 开源。
-
-## 👤 作者
-
-**nianshu2022**
-
-- GitHub: [@nianshu2022](https://github.com/nianshu2022)
-- 项目地址: [WithYou](https://github.com/nianshu2022/WithYou)
+应用将在 `http://localhost:3000` 呈现。
 
 ## ❓ FAQ
 
 <details>
-  <summary>如何创建管理员用户？</summary>
-  <p>
-    首次启动时，会根据环境变量 <code>CFRAME_ADMIN_EMAIL</code>、<code>CFRAME_ADMIN_NAME</code> 和 <code>CFRAME_ADMIN_PASSWORD</code> 环境变量创建一个管理员用户。<code>CFRAME_ADMIN_EMAIL</code> 必须是登录使用的 GitHub 账户的邮箱。
-  </p>
-</details>
-<details>
-  <summary>支持哪些图片格式？</summary>
-  <p>
-    支持 JPEG、PNG、HEIC/HEIF、MOV(作为实况照片) 格式。
-  </p>
-</details>
-<details>
-  <summary>为什么无法使用 GitHub/Local 存储？</summary>
-  <p>
-    目前支持 S3 兼容存储，未来计划支持 GitHub 和本地文件系统存储。
-  </p>
-</details>
-<details>
-  <summary>为什么需要/如何配置地图服务？</summary>
-  <p>
-    地图服务用于在地图上浏览照片拍摄位置，以及照片详情中的小地图渲染。目前使用 Mapbox，注册后<a href="https://console.mapbox.com/account/access-tokens/">获取访问令牌</a>并配置到 <code>MAPBOX_TOKEN</code> 环境变量中。
-  </p>
-</details>
-<details>
-  <summary>为什么我上传的 MOV 文件没有被识别为实况照片？</summary>
-  <p>
-    需要确保实况照片对的图片(.heic)和视频(.mov)的文件名一致（例如 <code>IMG_1234.heic</code> 与 <code>IMG_1234.mov</code> 会自动匹配）。
-    一般情况来说，不管是上传 .heic 还是 .mov，都会检测一次配对，因此上传的顺序无关紧要。
-    如果仍然没有被识别为实况照片，请在仪表盘中找到图片，在操作菜单中手动触发配对检测。
-  </p>
-</details>
-<details>
-  <summary>如何导入存储中已有的照片？</summary>
-  <p>
-    目前不支持直接导入已有照片，未来计划支持通过指定目录扫描导入。
-  </p>
-</details>
-<details>
-  <summary>本项目与 Afilmory 有何区别？</summary>
-  <p>
-    Afilmory 是一个非常优秀的项目，其部署方式是在本地或 CI 中处理存储中的照片并生成清单文件，然后前端通过读取清单文件来展示照片，属于静态部署。
-    ChronoFrame 则是一个动态的照片管理应用，提供在线上传、管理和浏览照片的功能，适合需要频繁更新照片的场景。
-  </p>
+  <summary>如何创建/重置管理员用户？</summary>
+  <p>首次启动项目时，读取到 <code>CFRAME_ADMIN_EMAIL</code> 和密码就会为你建立核心账户。后期可在此账号内管理更多用户。</p>
 </details>
 
-## 🙏 致谢
+<details>
+  <summary>目前存储机制是怎样的？</summary>
+  <p>主要支持 S3 与 本地卷（Docker）。如果你使用 Cloudflare 部署并在意边缘流量/用量，可以考虑未来引入基于 C/S 架构的对象存储配置。</p>
+</details>
 
-本项目基于 [ChronoFrame](https://github.com/simonno3/chronoframe) 二次开发。
+<details>
+  <summary>和原本的 ChronoFrame/Afilmory 等有何区别？</summary>
+  <p>它是更加动态轻量化的 Web App，具备直连的动态数据增删改能力；特别针对 Cloudflare 的 D1 SQLite 和 Nuxthub 的无缝迁移做了深层构建处理。而典型的 Afilmory 多用于静态生成流部署方案。</p>
+</details>
 
-感谢以下优秀的开源项目和库：
+## 📄 许可证 & 赞赏
 
-- [ChronoFrame](https://github.com/simonno3/chronoframe) - 原始项目
-- [Nuxt](https://nuxt.com/)
-- [TailwindCSS](https://tailwindcss.com/)
-- [Drizzle ORM](https://orm.drizzle.team/)
+基于 [ChronoFrame](https://github.com/simonno3/chronoframe) 深加工的现代分支版本。
+遵守与保留 [MIT 许可证](LICENSE) 开源。
+
+**Github:** [@nianshu2022](https://github.com/nianshu2022)
