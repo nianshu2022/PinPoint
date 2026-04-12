@@ -25,7 +25,7 @@ export default defineNuxtConfig({
     'nuxt-maplibre',
     'nuxt-og-image',
     'nuxt-gtag',
-    '@nuxthub/core',
+    ...(process.env.CF_PAGES || process.env.NODE_ENV !== 'production' ? ['@nuxthub/core'] : []),
   ],
 
   hub: {

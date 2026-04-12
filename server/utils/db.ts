@@ -1,16 +1,52 @@
-import { drizzle } from 'drizzle-orm/d1'
+import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
+import { drizzle as drizzleNode } from 'drizzle-orm/better-sqlite3'
 
 import * as schema from '../database/schema'
+import path from 'node:path'
 
 export const tables = schema
 export { eq, and, or, inArray } from 'drizzle-orm'
 
+
+// @ts-ignore Node.js specific module import bypasses Nuxt TS strict checks
+import { createRequire } from 'node:module'
+const customRequire = typeof require !== 'undefined' ? require : createRequire(import.meta.url)
+
 // 创建单例数据库连接
-let dbInstance: ReturnType<typeof drizzle> | null = null
+let dbInstance: any = null
 
 export function useDB() {
   if (!dbInstance) {
-    dbInstance = drizzle(hubDatabase(), { schema })
+    // 优先使用 NuxtHub 提供的 D1 / 模拟数据库
+    if (typeof hubDatabase !== 'undefined' && typeof hubDatabase === 'function') {
+      try {
+        // @ts-ignore: hubDatabase is auto-imported when @nuxthub/core is enabled
+        dbInstance = drizzleD1(hubDatabase(), { schema })
+      } catch (e) {
+        console.error('[db] Error initializing D1 via NuxtHub:', e)
+      }
+    }
+    
+    // 降级使用 local better-sqlite3 引擎
+    if (!dbInstance && !process.env.CF_PAGES) {
+      try {
+        // 利用字符串拼接避免被 Vite/Rollup 静态分析拦截引发在不包含依赖情况下的打包报错
+        const betterSqlite3Database = customRequire('better' + '-sqlite3')
+        if (betterSqlite3Database) {
+          const dbPath = process.env.DB_PATH || path.resolve(process.cwd(), 'data', 'sqlite.db')
+          const sqlite = new betterSqlite3Database(dbPath)
+          sqlite.pragma('journal_mode = WAL')
+          sqlite.pragma('synchronous = NORMAL')
+          dbInstance = drizzleNode(sqlite, { schema })
+        }
+      } catch (e) {
+        console.warn('[db] Failed to load better-sqlite3 locally')
+      }
+    }
+    
+    if (!dbInstance) {
+      throw new Error('[db] Cannot initialize any database interface!')
+    }
   }
 
   return dbInstance
