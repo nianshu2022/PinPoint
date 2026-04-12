@@ -155,6 +155,8 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    // NuxtHub 严格要求下划线命名的 cloudflare_pages，而不能通过隐式的连字符推断。
+    preset: process.env.CF_PAGES ? 'cloudflare_pages' : (process.env.NITRO_PRESET || 'node_server'),
     experimental: {
       websocket: true,
       tasks: true,
