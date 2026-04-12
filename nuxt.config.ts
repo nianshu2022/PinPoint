@@ -248,6 +248,13 @@ export default defineNuxtConfig({
                         }
                       });
                       export default stub;
+                      export const mem = async () => ({ used: 0, total: 0 });
+                      export const osInfo = async () => ({ distro: 'unknown' });
+                      export const cpu = async () => ({});
+                      export const currentLoad = async () => ({});
+                      export const fsSize = async () => ({});
+                      export const diskLayout = async () => ({});
+                      export const system = async () => ({});
                       export const versions = {};
                       export const Sharp = function() {};
                     `
