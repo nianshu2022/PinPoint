@@ -34,9 +34,9 @@
 #### 第一步： Fork 仓库
 1. 点击本项目右上角的 **Fork** 按钮，将本仓库克隆到您的个人 GitHub 账号下。
 
-#### 第二步： 获取 NuxtHub 部署密钥
+#### 第二步： 获取 NuxtHub 部署密钥 (完全免费)
 1. 访问 [NuxtHub Admin](https://admin.hub.nuxt.com/)。
-2. 使用您的 GitHub 账号进行授权登录。
+2. 使用您的 GitHub 账号进行授权登录（**请放心，个人的 Hobby 额度是永久免费的，其背后的 Cloudflare D1 等服务对个人照片库而言拥有近乎用不完的免费量**）。
 3. 进入控制台右上方点击 **Add Project** (或 New Project)。
 4. 在仓库列表中，选择您刚刚 Fork 过来的 `PinPoint` 仓库进行关联。
 5. 一旦关联完成，进入项目主页的 **Settings (设置)** 面板，找到 **Project Key** 这一项（一般是一串形如 `nuxthub_xxxx...` 的字符串），把它复制下来。
