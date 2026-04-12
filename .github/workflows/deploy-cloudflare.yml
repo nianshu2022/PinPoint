@@ -165,7 +165,14 @@ jobs:
             echo "✅ Migrations done."
           fi
 
-      # ── 10. 构建 Nuxt 应用（Cloudflare Pages 目标）────────────────────
+      # ── 10. 构建 workspace 依赖包（@chronoframe/webgl-image）──────────
+      - name: Build workspace dependencies
+        run: |
+          echo "📦 Building @chronoframe/webgl-image..."
+          pnpm build:deps
+          echo "✅ Workspace dependencies built."
+
+      # ── 11. 构建 Nuxt 应用（Cloudflare Pages 目标）────────────────────
       - name: Build Nuxt application
         env:
           CF_PAGES: '1'
