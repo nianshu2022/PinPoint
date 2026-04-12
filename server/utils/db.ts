@@ -17,16 +17,17 @@ let dbInstance: any = null
 
 export function useDB() {
   if (!dbInstance) {
-    // 优先使用 NuxtHub 提供的 D1 / 模拟数据库
-    if (typeof hubDatabase !== 'undefined' && typeof hubDatabase === 'function') {
+    // 优先使用挂载在 globalThis 上的原生 Cloudflare D1 binding
+    // 由 server/plugins/0.cloudflare-db.ts 在 Cloudflare 环境启动时注入
+    const d1Binding = (globalThis as any).__pinpointD1Binding
+    if (d1Binding) {
       try {
-        // @ts-ignore: hubDatabase is auto-imported when @nuxthub/core is enabled
-        dbInstance = drizzleD1(hubDatabase(), { schema })
+        dbInstance = drizzleD1(d1Binding, { schema })
       } catch (e) {
-        console.error('[db] Error initializing D1 via NuxtHub:', e)
+        console.error('[db] Error initializing D1 via native binding:', e)
       }
     }
-    
+
     // 降级使用 local better-sqlite3 引擎
     if (!dbInstance && !process.env.CF_PAGES) {
       try {
@@ -43,7 +44,7 @@ export function useDB() {
         console.warn('[db] Failed to load better-sqlite3 locally')
       }
     }
-    
+
     if (!dbInstance) {
       throw new Error('[db] Cannot initialize any database interface!')
     }
@@ -63,7 +64,7 @@ export async function waitForDatabase(): Promise<void> {
   if (dbWaitPromise) return dbWaitPromise
 
   dbWaitPromise = new Promise(async (resolve, reject) => {
-    console.log('[db] Waiting for Cloudflare DB binding to be ready...')
+    console.log('[db] Waiting for DB binding to be ready...')
     let attempts = 0
     const maxAttempts = 50
     while (attempts < maxAttempts) {
@@ -71,7 +72,7 @@ export async function waitForDatabase(): Promise<void> {
         const db = useDB()
         if (db) {
           await db.select().from(schema.settings).limit(1)
-          console.log('[db] Cloudflare DB binding is ready!')
+          console.log('[db] DB binding is ready!')
           resolve()
           return
         }
