@@ -162,6 +162,10 @@ export default defineNuxtConfig({
     // 用 rollup 虚拟模块 stub 替代，使构建通过，相关功能在 CF 环境不可用
     ...(process.env.CF_PAGES
       ? {
+          // 开启 nodejs_compat 兼容标志，允许使用 node:crypto 等 Node.js 内置模块
+          cloudflare: {
+            nodeCompat: true,
+          },
           rollupConfig: {
             plugins: [
               {

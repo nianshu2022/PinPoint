@@ -1,0 +1,8 @@
+# Cloudflare Pages 配置文件
+# 声明 nodejs_compat 标志，使 Workers 支持 node:crypto、node:stream 等 Node.js 内置模块
+
+name = "pinpoint"
+compatibility_date = "2025-07-15"
+compatibility_flags = ["nodejs_compat"]
+
+pages_build_output_dir = "dist"
