@@ -1,0 +1,41 @@
+name: Deploy to Cloudflare Pages (NuxtHub)
+
+# 这个工作流面向希望将项目通过 NuxtHub 部署在 Cloudflare 上的用户。
+# Cloudflare 的边缘节点适合部署前端静态资源无服务。
+on:
+  push:
+    branches:
+      - main # 默认提交到 main 时自动部署
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.18.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Deploy to NuxtHub (Cloudflare)
+        uses: nuxt-hub/action@v2
+        env:
+          # 在执行 Cloudflare 构建时，自动覆盖预设为 cloudflare-pages
+          NITRO_PRESET: cloudflare-pages 
+        with:
+          project-key: ${{ secrets.NUXT_HUB_PROJECT_KEY }}

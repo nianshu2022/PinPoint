@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const db = useDB()
   
   // 获取所有照片的表态统计
-  const reactions = db
+  const reactions = await db
     .select({
       photoId: tables.photoReactions.photoId,
       reactionType: tables.photoReactions.reactionType,

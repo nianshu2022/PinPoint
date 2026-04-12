@@ -3,8 +3,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import type { Metadata } from 'sharp'
 import sharp from 'sharp'
 import type { NeededExif, PhotoInfo } from '../../../shared/types/photo'
-import type { ExifDateTime, Tags } from 'exiftool-vendored'
-import { exiftool } from 'exiftool-vendored'
+import exifr from 'exifr'
 import { noop } from 'es-toolkit'
 import { withRetry, RetryPresets, RetryConditions } from '../../utils/retry'
 
@@ -249,7 +248,7 @@ const getDefaultColorSpaceForFormat = (format: string): string | undefined => {
   }
 }
 
-const processExifData = (exifData: Tags, metadata: Metadata): NeededExif => {
+const processExifData = (exifData: Record<string, any>, metadata: Metadata): NeededExif => {
   const date = {
     DateTimeOriginal: formatExifDate(exifData.DateTimeOriginal),
     DateTimeDigitized: formatExifDate(exifData.DateTimeDigitized),
@@ -294,61 +293,50 @@ export const extractExifData = async (
 ): Promise<NeededExif | null> => {
   try {
     return await withRetry(async () => {
-      let tempImagePath: string | null = null
-      
-      try {
-        // 提取基础元数据
-        let metadata = await sharp(imageBuffer).metadata()
+      let metadata = await sharp(imageBuffer).metadata()
 
-        // 如果主buffer没有EXIF，尝试原始buffer
-        if (!metadata.exif && rawImageBuffer) {
-          try {
-            metadata = await sharp(rawImageBuffer).metadata()
-          } catch (err) {
-            logger?.warn('Error extracting EXIF data from raw image buffer:', err)
-          }
-        }
-
-        if (!metadata.exif) {
-          logger?.warn('No EXIF data found in image metadata')
-          return null
-        }
-
-        logger?.info('Extracting EXIF data using exiftool...')
-
-        // 创建临时工作目录
-        const tempDir = path.resolve(process.cwd(), 'data/.exif_workdir')
-        await mkdir(tempDir, { recursive: true })
-        tempImagePath = path.resolve(tempDir, `${crypto.randomUUID()}.jpg`)
-
-        // 写入临时文件
-        await writeFile(tempImagePath, rawImageBuffer || imageBuffer)
-        
-        // 使用 exiftool 读取详细 EXIF 数据
-        const exifData = await exiftool.read(tempImagePath)
-        const result = processExifData(exifData, metadata)
-
-        // 记录颜色空间信息
-        if (result.ColorSpace) {
-          logger?.success(`Inferred ColorSpace: ${result.ColorSpace}`)
-        } else {
-          logger?.info('ColorSpace could not be determined')
-        }
-
-        return result
-      } finally {
-        // 确保清理临时文件
-        if (tempImagePath) {
-          await unlink(tempImagePath).catch(noop)
+      if (!metadata.exif && rawImageBuffer) {
+        try {
+          metadata = await sharp(rawImageBuffer).metadata()
+        } catch (err) {
+          logger?.warn('Error extracting EXIF data from raw image buffer:', err)
         }
       }
+
+      logger?.info('Extracting EXIF data using exifr...')
+
+      const bufferToParse = rawImageBuffer || imageBuffer
+      
+      // Use exifr to parse in-memory buffer directly safely
+      const exifData = await exifr.parse(bufferToParse, {
+        tiff: true,
+        xmp: true,
+        icc: true,
+        exif: true,
+        gps: true,
+      })
+      
+      if (!exifData) {
+        return null
+      }
+
+      // Convert parsed basic JS dates back to ISO strings needed by processExifData
+      if (exifData.DateTimeOriginal && exifData.DateTimeOriginal instanceof Date) {
+        exifData.DateTimeOriginal = exifData.DateTimeOriginal.toISOString()
+      }
+
+      const result = processExifData(exifData, metadata)
+
+      if (result.ColorSpace) {
+        logger?.success(`Inferred ColorSpace: ${result.ColorSpace}`)
+      }
+
+      return result
     }, {
       ...RetryPresets.standard,
-      timeout: 15000, // EXIF 处理可能需要更长时间
+      timeout: 10000,
       retryCondition: (error) => {
-        // 组合多种重试条件
-        return RetryConditions.fileSystemErrors(error) || 
-               RetryConditions.resourceErrors(error) ||
+        return RetryConditions.resourceErrors(error) ||
                error.message.includes('timeout')
       }
     }, logger)

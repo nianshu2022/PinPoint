@@ -1,0 +1,59 @@
+name: Build & Push Docker Image
+
+# 这个工作流主要面向希望使用 Docker (例如群晖、VPS 等) 部署的用户，
+# 它可以自动将代码构建为 Docker 镜像并推送到 GitHub Container Registry (ghcr.io)
+on:
+  push:
+    tags:
+      - 'v*' # 仅在发布新版本 tag (例如 v1.0.0) 时自动触发
+  workflow_dispatch: # 允许在 Actions 面板手动触发
+
+env:
+  REGISTRY: ghcr.io
+  # IMAGE_NAME: ${{ github.repository }} 小写转换
+  IMAGE_NAME: ${{ github.repository_owner }}/pinpoint
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # 允许推送到 GitHub Packages (ghcr.io)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 将 GitHub 仓库名转为小写 (Docker 镜像名必须小写)
+      - name: Lowercase image name
+        run: |
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >>${GITHUB_ENV}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=semver,pattern={{version}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

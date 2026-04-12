@@ -1,7 +1,6 @@
 import path from 'path'
 import bmp from '@vingle/bmp-js'
-import heicConvert from 'heic-convert'
-import { getStorageManager } from '~~/server/plugins/3.storage'
+import { getStorageManager } from '~~/server/plugins/z3.storage'
 import sharp from 'sharp'
 import { withRetry, RetryPresets, RetryConditions } from '../../utils/retry'
 
@@ -146,41 +145,7 @@ const getMetadataWithSharp = async (
   }
 }
 
-export const convertHeicToJpeg = async (heicBuffer: Buffer) => {
-  return await withRetry(
-    async () => {
-      // 检查文件大小，如果太大则降低质量
-      const fileSizeMB = heicBuffer.length / (1024 * 1024)
-      const quality = fileSizeMB > 10 ? 0.8 : 0.95
-
-      const jpegBuffer = await heicConvert({
-        // @ts-expect-error idk why there is a type error here
-        buffer: heicBuffer,
-        format: 'JPEG',
-        quality,
-      })
-
-      logger.image.info(
-        `Successfully converted HEIC to JPEG (quality: ${quality})`,
-      )
-      return Buffer.from(jpegBuffer as ArrayBuffer)
-    },
-    {
-      ...RetryPresets.slow, // HEIC 转换是重量级操作
-      timeout: 30000,
-      retryCondition: (error) => {
-        // HEIC 转换错误通常是资源相关的
-        return (
-          RetryConditions.resourceErrors(error) ||
-          error.message.includes('memory') ||
-          error.message.includes('timeout')
-        )
-      },
-    },
-    logger.image,
-  )
-}
-
+// HEIC conversion has been moved to the client side using browser-image-compression.
 export const convertBitmapToSharpInst = async (bitmapBuffer: Buffer) => {
   logger.image.info('Converting Bitmap to JPEG...')
   const bmpImage = bmp.decode(bitmapBuffer, true)
@@ -205,8 +170,8 @@ export const preprocessImageBuffer = async (
   const extName = path.extname(key).toLowerCase()
 
   if (['.heic', '.heif', '.hif'].includes(extName)) {
-    logger.image.info('HEIC image detected', key)
-    return await convertHeicToJpeg(buffer)
+    logger.image.info('HEIC image detected - edge processing unsupported, uploading raw buffer', key)
+    return buffer
   }
 
   return buffer
@@ -236,26 +201,10 @@ export const preprocessImageWithJpegUpload = async (
 
     if (['.heic', '.heif', '.hif'].includes(extName)) {
       logger.image.info(
-        'HEIC image detected, converting and uploading JPEG version',
+        'HEIC image detected, treating as raw unsupported format at edge',
         s3key,
       )
-
-      try {
-        processedBuffer = await convertHeicToJpeg(rawImageBuffer)
-
-        // 生成 JPEG 版本的 key（替换扩展名为 .jpg）
-        const baseName = path.basename(s3key, path.extname(s3key))
-        jpegKey = `${baseName}.jpeg`
-
-        // 上传 JPEG 版本到存储
-        jpegStorageKey = (
-          await storageProvider.create(jpegKey, processedBuffer, 'image/jpeg')
-        ).key
-        logger.image.info(`Uploaded JPEG version to: ${jpegKey}`)
-      } catch (err) {
-        logger.image.error(`HEIC conversion failed: ${s3key}`, err)
-        return null
-      }
+      processedBuffer = rawImageBuffer
     } else {
       processedBuffer = rawImageBuffer
     }

@@ -261,15 +261,12 @@ const processCurrentLivePhoto = async () => {
   if (!photo || !photo.isLivePhoto || !photo.livePhotoVideoUrl) return
 
   try {
-    const blob = await convertMovToMp4(photo.livePhotoVideoUrl, photo.id)
-    if (blob) {
-      livePhotoVideoBlob.value = blob
-      // Clean up previous blob URL
-      if (livePhotoVideoBlobUrl.value) {
-        URL.revokeObjectURL(livePhotoVideoBlobUrl.value)
-      }
-      livePhotoVideoBlobUrl.value = URL.createObjectURL(blob)
+    // Since the bucket stores .mp4, we can stream directly via native <video> element
+    // This avoids downloading heavy blobs into RAM and prevents 'Premature close' errors during fetch aborts.
+    if (livePhotoVideoBlobUrl.value && livePhotoVideoBlobUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(livePhotoVideoBlobUrl.value)
     }
+    livePhotoVideoBlobUrl.value = photo.livePhotoVideoUrl
   } catch (error) {
     console.error('Failed to process LivePhoto in viewer:', error)
   }

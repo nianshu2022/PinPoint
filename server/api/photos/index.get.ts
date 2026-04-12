@@ -4,7 +4,10 @@ import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 export default eventHandler(async (event) => {
   const { storageProvider } = useStorageProvider(event)
   const query = getQuery(event)
-  const limitCount = Number(query.limit) || 50
+  let limitCount = 50
+  if (query.limit !== undefined) {
+    limitCount = Number(query.limit)
+  }
   const cursorStr = query.cursor ? String(query.cursor) : null
 
   let q = useDB().select().from(tables.photos).orderBy(desc(tables.photos.dateTaken))
@@ -13,7 +16,7 @@ export default eventHandler(async (event) => {
     q = q.where(lt(tables.photos.dateTaken, cursorStr)) as any
   }
   
-  const rawPhotos = await q.limit(limitCount).all()
+  const rawPhotos = limitCount > 0 ? await q.limit(limitCount).all() : await q.all()
 
   // 动态生成正确的 URL，覆盖数据库中可能存在的旧 URL
   const items = rawPhotos.map((photo) => ({
@@ -31,6 +34,6 @@ export default eventHandler(async (event) => {
   
   return {
     items,
-    nextCursor: items.length === limitCount && items[items.length - 1].dateTaken ? items[items.length - 1].dateTaken : null,
+    nextCursor: limitCount > 0 && items.length === limitCount && items[items.length - 1].dateTaken ? items[items.length - 1].dateTaken : null,
   }
 })

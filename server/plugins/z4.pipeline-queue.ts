@@ -1,6 +1,6 @@
 import { WorkerPool } from '../services/pipeline-queue'
 
-export default defineNitroPlugin(async (_nitroApp) => {
+export default defineNitroPlugin(async (nitroApp) => {
   const _logger = logger.dynamic('queue')
 
   // 从环境变量读取 worker 数量，默认为 2（适合 2GB 内存服务器）
@@ -13,14 +13,18 @@ export default defineNitroPlugin(async (_nitroApp) => {
       workerCount,
       intervalMs: 1500,
       intervalOffset: 300,
-      enableLoadBalancing: true,
       statsReportInterval: 60000 * 10,
     },
     _logger,
   )
-  await workerPool.start()
 
-  globalThis.__workerPool = workerPool
+  await waitForDatabase()
+
+  workerPool.start().then(() => {
+    globalThis.__workerPool = workerPool
+  }).catch((error) => {
+    _logger.error('Failed to start worker pool:', error)
+  })
 
   const exitHandler = async () => {
     _logger.info('Shutting down worker pool...')

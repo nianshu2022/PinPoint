@@ -1,22 +1,28 @@
 import { DEFAULT_SETTINGS } from '../services/settings/contants'
 import { settingsManager } from '../services/settings/settingsManager'
 
-export default defineNitroPlugin(async (_nitroApp) => {
+export default defineNitroPlugin(async (nitroApp) => {
   const _settingsManager = settingsManager
   
-  // Mark initialization phase to prevent storage provider switch triggers
-  // until storage manager is properly initialized in plugin 2_storage.ts
+  console.log('[z2.settings] initialization started')
   _settingsManager.setInitializingFlag(true)
-  
   try {
+    await waitForDatabase()
     // Initialize default settings first
+    console.log('[z2.settings] before init')
     await _settingsManager.init(DEFAULT_SETTINGS)
+    console.log('[z2.settings] after init')
     
     // Migrate existing configurations from runtimeConfig
-    // Note: Storage manager will be initialized in the next plugin (2_storage.ts)
+    // Note: Storage manager will be initialized in the next plugin (z3_storage.ts)
+    console.log('[z2.settings] before migrate')
     await migrateRuntimeConfigToSettings()
+    console.log('[z2.settings] after migrate')
+  } catch (e) {
+    console.error('Failed to initialize settings manager', e)
   } finally {
     _settingsManager.setInitializingFlag(false)
+    console.log('[z2.settings] initialization finished')
   }
 })
 

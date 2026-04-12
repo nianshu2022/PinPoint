@@ -17,14 +17,17 @@ export function getStorageManager() {
   return storageManager
 }
 
-export default nitroPlugin(async (nitroApp) => {
-  // const config = useRuntimeConfig()
+console.log('[3.storage] Plugin file loaded!')
 
+export default defineNitroPlugin(async (nitroApp) => {
+  await waitForDatabase()
   // Wait for settings migration to complete if still initializing
   // This ensures we get the active provider after config migration
   let activeProvider = await settingsManager.storage.getActiveProvider()
+  console.log('[z3.storage] activeProvider initially:', activeProvider?.provider)
   
   if (!activeProvider) {
+    console.log('[z3.storage] no active provider, waiting for settingsManager initialization...')
     // Retry while settings manager is still initializing
     let attempts = 0
     const maxAttempts = 100 // 5 seconds max with 50ms intervals
@@ -34,9 +37,11 @@ export default nitroPlugin(async (nitroApp) => {
       activeProvider = await settingsManager.storage.getActiveProvider()
       attempts++
     }
+    console.log('[z3.storage] wait loop finished. attempts:', attempts, 'activeProvider:', activeProvider?.provider)
   }
   
   if (!activeProvider) {
+    console.error('[z3.storage] No active storage provider configured. Exiting plugin init.')
     logger.storage.error('No active storage provider configured.')
     return
   }
@@ -50,11 +55,6 @@ export default nitroPlugin(async (nitroApp) => {
 
   // 设置全局实例
   setGlobalStorageManager(storageManager)
-
-  // Set storage manager in context for each request
-  nitroApp.hooks.hook('request', (event) => {
-    event.context.storage = storageManager
-  })
 
   // Initialize local storage directory if needed
   const isLocalStorageProvider = (
@@ -113,4 +113,13 @@ export default nitroPlugin(async (nitroApp) => {
   })
 
   logger.storage.success('Storage plugin initialized successfully')
+
+  // Set storage manager in context for each request
+  nitroApp.hooks.hook('request', (event) => {
+    try {
+      event.context.storage = getGlobalStorageManager()
+    } catch {
+      // Storage might not be ready yet during the very first requests
+    }
+  })
 })

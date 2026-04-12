@@ -1,5 +1,4 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/d1'
 
 import * as schema from '../database/schema'
 
@@ -8,26 +7,10 @@ export { eq, and, or, inArray } from 'drizzle-orm'
 
 // 创建单例数据库连接
 let dbInstance: ReturnType<typeof drizzle> | null = null
-let sqliteInstance: Database.Database | null = null
 
 export function useDB() {
-  if (!dbInstance || !sqliteInstance) {
-    // 创建数据库连接，启用WAL模式以提高并发性能
-    sqliteInstance = new Database('data/app.sqlite3', {
-      verbose:
-        process.env.NODE_ENV === 'development'
-          ? logger.dynamic('db').verbose
-          : undefined,
-    })
-
-    // 启用WAL模式以提高并发性能
-    sqliteInstance.pragma('journal_mode = WAL')
-    sqliteInstance.pragma('synchronous = NORMAL')
-    sqliteInstance.pragma('cache_size = 1000')
-    sqliteInstance.pragma('temp_store = MEMORY')
-    sqliteInstance.pragma('busy_timeout = 5000')
-
-    dbInstance = drizzle(sqliteInstance, { schema })
+  if (!dbInstance) {
+    dbInstance = drizzle(hubDatabase(), { schema })
   }
 
   return dbInstance
@@ -35,11 +18,38 @@ export function useDB() {
 
 // 优雅关闭数据库连接
 export function closeDB() {
-  if (sqliteInstance) {
-    sqliteInstance.close()
-    sqliteInstance = null
-    dbInstance = null
-  }
+  dbInstance = null
+}
+
+let dbWaitPromise: Promise<void> | null = null
+
+export async function waitForDatabase(): Promise<void> {
+  if (dbWaitPromise) return dbWaitPromise
+
+  dbWaitPromise = new Promise(async (resolve, reject) => {
+    console.log('[db] Waiting for Cloudflare DB binding to be ready...')
+    let attempts = 0
+    const maxAttempts = 50
+    while (attempts < maxAttempts) {
+      try {
+        const db = useDB()
+        if (db) {
+          await db.select().from(schema.settings).limit(1)
+          console.log('[db] Cloudflare DB binding is ready!')
+          resolve()
+          return
+        }
+      } catch (e) {
+        // Ignored, DB not ready
+        await new Promise(r => setTimeout(r, 200))
+      }
+      attempts++
+    }
+    console.error('[db] Failed to connect to DB after 10 seconds.')
+    reject(new Error('DB not ready'))
+  })
+
+  return dbWaitPromise
 }
 
 export type User = typeof schema.users.$inferSelect

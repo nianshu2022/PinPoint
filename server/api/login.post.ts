@@ -15,7 +15,7 @@ export default eventHandler(async (event) => {
     }).parse,
   )
 
-  const user = db
+  const user = await db
     .select()
     .from(tables.users)
     .where(eq(tables.users.email, email))

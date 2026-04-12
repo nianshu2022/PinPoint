@@ -1,6 +1,7 @@
 import type { ConsolaInstance } from 'consola'
 import type { NeededExif } from '~~/shared/types/photo'
 import type { StorageProvider } from '../storage'
+import { ensureH264Mp4 } from './transcode'
 
 interface MotionPhotoProcessParams {
   photoId: string
@@ -273,11 +274,20 @@ export const processMotionPhotoFromXmp = async ({
     // todo: consider storing in a dedicated subfolder
     // const targetKey = `motion-videos/${photoId}.mp4`
     const targetKey = `${photoId}.mp4`
+    // Transcode the extracted video buffer to H.264 if it is HEVC/H.265
+    logger?.info(`[motion-photo] Ensuring extracted Motion Photo video is standard H.264...`)
+    const transcodeResult = await ensureH264Mp4(videoBuffer)
+    if (transcodeResult.transcoded) {
+      logger?.info(`[motion-photo] Successfully transcoded ${transcodeResult.originalCodec} to H.264`)
+    } else {
+      logger?.info(`[motion-photo] Video is already ${transcodeResult.originalCodec}, no transcoding needed`)
+    }
+
     let storedObject
     try {
       storedObject = await storageProvider.create(
         targetKey,
-        videoBuffer,
+        transcodeResult.buffer, // Use the transcoded buffer
         'video/mp4',
       )
     } catch (error) {

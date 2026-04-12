@@ -112,7 +112,7 @@ const handleMouseEnter = async () => {
   if (!props.photo.isLivePhoto || !props.photo.livePhotoVideoUrl) return
 
   // 如果视频已准备好，立即播放
-  if (videoBlob.value && videoBlobUrl.value && isVideoLoaded.value) {
+  if (videoBlobUrl.value && isVideoLoaded.value) {
     playLivePhotoVideo()
   } else if (!processingState.value?.isProcessing) {
     // 如果视频还未处理，立即开始处理
@@ -338,27 +338,24 @@ const processLivePhotoWhenVisible = async () => {
     return
 
   try {
-    // 使用优化的转换函数，支持重试和缓存
-    const blob = await convertMovToMp4(
-      props.photo.livePhotoVideoUrl,
-      props.photo.id,
-    )
+    if (videoBlobUrl.value && videoBlobUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(videoBlobUrl.value)
+    }
+    videoBlobUrl.value = props.photo.livePhotoVideoUrl
+    isVideoLoaded.value = true
 
-    if (blob) {
-      videoBlob.value = blob
-      // Clean up previous blob URL
-      if (videoBlobUrl.value) {
-        URL.revokeObjectURL(videoBlobUrl.value)
-      }
-      videoBlobUrl.value = URL.createObjectURL(blob)
-      isVideoLoaded.value = true
-
-      // 预热视频元素以提高播放性能
+    // 预热视频元素以提高播放性能
+    nextTick(() => {
       const videoEl = getVideoElement()
       if (videoEl) {
         videoEl.load()
       }
-    }
+      
+      // 如果此时鼠标已经悬停，并且没有播放，立即开始播放
+      if (isHovering.value && !isVideoPlaying.value) {
+        playLivePhotoVideo()
+      }
+    })
   } catch (error) {
     console.error('Failed to process LivePhoto:', error)
     // 错误状态会通过processingState反映出来

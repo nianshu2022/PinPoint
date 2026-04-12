@@ -1,4 +1,6 @@
-import { ref, computed } from 'vue'
+import { ref, computed, readonly } from 'vue'
+import { FFmpeg } from '@ffmpeg/ffmpeg'
+import { fetchFile } from '@ffmpeg/util'
 
 interface LivePhotoProcessingState {
   isProcessing: boolean
@@ -321,8 +323,48 @@ export const useLivePhotoProcessor = () => {
     setInterval(cleanupExpiredCache, 10 * 60 * 1000)
   }
 
+  let ffmpegInstance: FFmpeg | null = null
+  const loadFFmpeg = async () => {
+    if (ffmpegInstance && ffmpegInstance.loaded) return ffmpegInstance
+    ffmpegInstance = new FFmpeg()
+    await ffmpegInstance.load() // Load WASM core
+    return ffmpegInstance
+  }
+
+  /**
+   * 将本地文件系统的 MOV 文件直接使用 FFmpeg WASM 转码为 MP4
+   */
+  const convertLocalMovToMp4 = async (file: File): Promise<File> => {
+    try {
+      const ffmpeg = await loadFFmpeg()
+      const inputName = 'input.mov'
+      const outputName = 'output.mp4'
+
+      await ffmpeg.writeFile(inputName, await fetchFile(file))
+      
+      // 使用 x264 ultrafast 预设进行极速转码
+      await ffmpeg.exec([
+        '-i', inputName, 
+        '-vcodec', 'libx264', 
+        '-preset', 'ultrafast', 
+        '-acodec', 'aac', 
+        outputName
+      ])
+
+      const data = await ffmpeg.readFile(outputName)
+      const blob = new Blob([data as any], { type: 'video/mp4' })
+      const mp4FileName = file.name.replace(/\.mov$/i, '.mp4')
+      
+      return new File([blob], mp4FileName, { type: 'video/mp4' })
+    } catch (err) {
+      console.error('Failed to convert local MOV to MP4 using FFmpeg WASM', err)
+      throw err
+    }
+  }
+
   return {
     convertMovToMp4,
+    convertLocalMovToMp4,
     getProcessingState,
     batchProcessLivePhotos,
     preloadLivePhotosInViewport,

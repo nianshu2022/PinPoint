@@ -1,6 +1,5 @@
 import { useStorageProvider } from '~~/server/utils/useStorageProvider'
 import { logger } from '~~/server/utils/logger'
-import { fileTypeFromStream } from 'file-type'
 
 export default eventHandler(async (event) => {
   await requireUserSession(event)
@@ -45,47 +44,39 @@ export default eventHandler(async (event) => {
     }
   }
   
-  // 不使用 readRawBody，直接取得传入的原始可读流
-  const reqStream = event.node.req
+  // 使用 Web Stream 替代 Node.js 流以兼容 Cloudflare
+  const streamToUpload = getRequestWebStream(event)
 
-  let actualContentType = contentType
-  let streamToUpload: any = reqStream
+  if (!streamToUpload) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'No file stream provided'
+    })
+  }
 
   if (whitelistEnabled) {
-    try {
-      // fileTypeFromStream 解析前几个字节，然后返回一个可完美对接下游的新流
-      const streamWithFileType = await fileTypeFromStream(reqStream)
-      streamToUpload = streamWithFileType
+    const whitelistStr = config.upload.mime.whitelist
+    const allowedTypes = whitelistStr
+      ? whitelistStr.split(',').map((type: string) => type.trim()).filter(Boolean)
+      : []
       
-      if (streamWithFileType.fileType?.mime) {
-        actualContentType = streamWithFileType.fileType.mime
-      }
-      
-      const whitelistStr = config.upload.mime.whitelist
-      const allowedTypes = whitelistStr
-        ? whitelistStr.split(',').map((type: string) => type.trim()).filter(Boolean)
-        : []
-        
-      if (allowedTypes.length > 0 && !allowedTypes.includes(actualContentType)) {
-        throw createError({
-          statusCode: 415,
-          statusMessage: t('upload.error.invalidType.title'),
-          data: {
-            title: t('upload.error.invalidType.title'),
-            message: t('upload.error.invalidType.message', { type: actualContentType }),
-            suggestion: t('upload.error.invalidType.suggestion', { allowed: allowedTypes.join(', ') }),
-          },
-        })
-      }
-    } catch (e) {
-      logger.chrono.warn('Failed to parse stream file-type, falling back to header', e)
+    if (allowedTypes.length > 0 && !allowedTypes.includes(contentType)) {
+      throw createError({
+        statusCode: 415,
+        statusMessage: t('upload.error.invalidType.title'),
+        data: {
+          title: t('upload.error.invalidType.title'),
+          message: t('upload.error.invalidType.message', { type: contentType }),
+          suggestion: t('upload.error.invalidType.suggestion', { allowed: allowedTypes.join(', ') }),
+        },
+      })
     }
   }
 
   // 大小限制将被交由 Storage 层或 Web 代理 (如 Nginx/CF) 处理，剥离 Node 内存压力。
 
   try {
-    await storageProvider.create(key.replace(/^\/+/, ''), streamToUpload, actualContentType)
+    await storageProvider.create(key.replace(/^\/+/, ''), streamToUpload, contentType)
   } catch (error) {
     logger.chrono.error('Storage provider create error:', error)
     throw createError({

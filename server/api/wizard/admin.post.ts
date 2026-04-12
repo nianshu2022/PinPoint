@@ -12,7 +12,7 @@ export default eventHandler(async (event) => {
   )
 
   // Check if any user exists
-  const existingUser = db.select().from(tables.users).limit(1).get()
+  const existingUser = await db.select().from(tables.users).limit(1).get()
   if (existingUser) {
     // If users exist, we might want to update the admin or throw error
     // For wizard, let's assume we are setting up the first user.

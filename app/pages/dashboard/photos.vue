@@ -4,6 +4,7 @@ import type { Photo, PipelineQueueItem } from '~~/server/utils/db'
 import { h, resolveComponent } from 'vue'
 import { Icon, UBadge } from '#components'
 import ThumbImage from '~/components/ui/ThumbImage.vue'
+import imageCompression from 'browser-image-compression'
 
 const UCheckbox = resolveComponent('UCheckbox')
 const Rating = resolveComponent('Rating')
@@ -267,7 +268,7 @@ const handleBatchEditSubmit = async () => {
     batchLocationSelection.value = null
 
     // clear selection and refresh
-    selectedIds.value = []
+    rowSelection.value = {}
     await refresh()
   } catch (error: any) {
     console.error('Batch update failed:', error)
@@ -421,7 +422,7 @@ const formattedCoordinates = computed(() => {
 
 const locationLatModel = computed({
   get: () => locationSelection.value?.latitude ?? undefined,
-  set: (val) => {
+  set: (val: any) => {
     if (val === undefined || val === '') return
     const num = Number(val)
     if (!isNaN(num)) {
@@ -438,7 +439,7 @@ const locationLatModel = computed({
 
 const locationLngModel = computed({
   get: () => locationSelection.value?.longitude ?? undefined,
-  set: (val) => {
+  set: (val: any) => {
     if (val === undefined || val === '') return
     const num = Number(val)
     if (!isNaN(num)) {
@@ -481,14 +482,36 @@ const uploadImage = async (file: File, existingFileId?: string) => {
     uploadingFiles.value = new Map(uploadingFiles.value)
   }
 
+  let finalFile = file;
+  try {
+    const isLikelyMotionPhoto = /MVIMG|MotionPhoto|~MV/i.test(finalFile.name)
+    // 预处理阶段: LivePhoto MOV -> MP4 转码
+    if (finalFile.type === 'video/quicktime' || finalFile.name.toLowerCase().endsWith('.mov')) {
+      uploadingFile.status = 'preparing'
+      const { convertLocalMovToMp4 } = useLivePhotoProcessor()
+      finalFile = await convertLocalMovToMp4(finalFile)
+    } 
+    // 预处理阶段: 图片压缩 (跳过动态照片，否则附加的视频会被破坏)
+    else if (finalFile.type.startsWith('image/') && !finalFile.type.includes('gif') && !isLikelyMotionPhoto) {
+      finalFile = await imageCompression(finalFile, {
+        maxSizeMB: 5,
+        maxWidthOrHeight: 4096,
+        useWebWorker: true,
+        preserveExif: true,
+      })
+    }
+  } catch (prepError) {
+    console.warn('Failed to preprocess file, falling back to original:', prepError)
+  }
+
   try {
     // 第一步：获取预签名 URL
     uploadingFile.status = 'preparing'
     const signedUrlResponse = await $fetch('/api/photos', {
       method: 'POST',
       body: {
-        fileName: file.name,
-        contentType: file.type,
+        fileName: finalFile.name,
+        contentType: finalFile.type,
       },
     })
 
@@ -509,7 +532,7 @@ const uploadImage = async (file: File, existingFileId?: string) => {
     uploadingFiles.value = new Map(uploadingFiles.value)
 
     // 第二步：使用 composable 上传文件到存储
-    await uploadManager.uploadFile(file, signedUrlResponse.signedUrl, {
+    await uploadManager.uploadFile(finalFile, signedUrlResponse.signedUrl, {
       onProgress: (progress: UploadProgress) => {
         uploadingFile.progress = progress.percentage
         uploadingFile.uploadProgress = {
@@ -538,11 +561,12 @@ const uploadImage = async (file: File, existingFileId?: string) => {
         uploadingFiles.value = new Map(uploadingFiles.value)
 
         try {
-          // 检查是否为MOV视频文件（通过MIME类型或文件扩展名）
+          // 检查是否为LivePhoto关联视频文件
           const isMovFile =
-            file.type === 'video/quicktime' ||
-            file.type === 'video/mp4' ||
-            file.name.toLowerCase().endsWith('.mov')
+            finalFile.type === 'video/quicktime' ||
+            finalFile.type === 'video/mp4' ||
+            finalFile.name.toLowerCase().endsWith('.mov') ||
+            finalFile.name.toLowerCase().endsWith('.mp4')
 
           const resp = await $fetch('/api/queue/add-task', {
             method: 'POST',
@@ -551,7 +575,7 @@ const uploadImage = async (file: File, existingFileId?: string) => {
                 type: isMovFile ? 'live-photo-video' : 'photo',
                 storageKey: signedUrlResponse.fileKey,
               },
-              priority: isMovFile ? 0 : 1, // Live Photo 视频优先级更低，确保图片优先处理
+              priority: isMovFile ? 0 : 1, // Live Photo 视频优先级更高或更低
               maxAttempts: 3,
             },
           })
@@ -673,6 +697,9 @@ watch(isEditModalOpen, (open) => {
       tags: [],
       location: null,
       rating: null,
+      country: null,
+      city: null,
+      dateTaken: null,
     }
     locationSelection.value = null
     locationTouched.value = false
@@ -1576,7 +1603,35 @@ const handleReverseGeocodeRequest = async (photo: Photo) => {
             : '',
         color: 'success',
       })
+      if (result.taskId) {
+        const intervalId = setInterval(async () => {
+          try {
+            const statusResult = await $fetch(`/api/queue/stats/${result.taskId}`)
+            if (statusResult.status === 'completed') {
+              clearInterval(intervalId)
+              setReverseGeocodeLoading(photo.id, false)
+              await refresh()
+              toast.add({
+                title: $t('dashboard.photos.messages.reprocessSuccess') || '更新成功',
+                color: 'success',
+              })
+            } else if (statusResult.status === 'failed') {
+              clearInterval(intervalId)
+              setReverseGeocodeLoading(photo.id, false)
+              toast.add({
+                title: $t('dashboard.photos.messages.reverseGeocodeFailed'),
+                description: statusResult.errorMessage || undefined,
+                color: 'error',
+              })
+            }
+          } catch (e) {
+            // Ignore polling errors
+          }
+        }, 1500)
+        return // Leave loading on
+      }
     } else {
+      setReverseGeocodeLoading(photo.id, false)
       toast.add({
         title: $t('dashboard.photos.messages.reverseGeocodeFailed'),
         description:
@@ -1586,6 +1641,7 @@ const handleReverseGeocodeRequest = async (photo: Photo) => {
       })
     }
   } catch (error: any) {
+    setReverseGeocodeLoading(photo.id, false)
     console.error('Failed to enqueue reverse geocoding task:', error)
     const message =
       error?.data?.statusMessage ||
@@ -1598,8 +1654,6 @@ const handleReverseGeocodeRequest = async (photo: Photo) => {
       description: message,
       color: 'error',
     })
-  } finally {
-    setReverseGeocodeLoading(photo.id, false)
   }
 }
 
@@ -2317,7 +2371,7 @@ onUnmounted(() => {
                 :searchable="false"
                 :search-input="false"
                 class="w-32"
-                :ui="{ rounded: 'rounded-l-md rounded-r-none' }"
+                :ui="{ rounded: 'rounded-l-md rounded-r-none' } as any"
               >
               </USelectMenu>
               <UInput
@@ -2325,11 +2379,11 @@ onUnmounted(() => {
                 icon="tabler:search"
                 :placeholder="$t('dashboard.photos.toolbar.searchPlaceholder')"
                 class="w-full sm:w-64"
-                :ui="{ rounded: 'rounded-l-none rounded-r-md', icon: { trailing: { pointer: '' } } }"
+                :ui="{ rounded: 'rounded-l-none rounded-r-md', icon: { trailing: { pointer: '' } } } as any"
               >
                 <template v-if="activeFilters.search" #trailing>
                   <UButton
-                    color="gray"
+                    color="neutral"
                     variant="link"
                     icon="tabler:x"
                     :padded="false"
@@ -2771,7 +2825,7 @@ onUnmounted(() => {
                         placeholder="Latitude"
                         size="sm"
                         class="flex-1"
-                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                        :ui="{ icon: { trailing: { pointer: '' } } } as any"
                       >
                         <template #trailing>
                           <span class="text-xs text-gray-500 dark:text-gray-400">Lat</span>
@@ -2784,7 +2838,7 @@ onUnmounted(() => {
                         placeholder="Longitude"
                         size="sm"
                         class="flex-1"
-                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                        :ui="{ icon: { trailing: { pointer: '' } } } as any"
                       >
                         <template #trailing>
                           <span class="text-xs text-gray-500 dark:text-gray-400">Lng</span>
@@ -2973,7 +3027,7 @@ onUnmounted(() => {
                         placeholder="Latitude"
                         size="sm"
                         class="flex-1"
-                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                        :ui="{ icon: { trailing: { pointer: '' } } } as any"
                       >
                         <template #trailing>
                           <span class="text-xs text-gray-500 dark:text-gray-400">Lat</span>
@@ -2986,7 +3040,7 @@ onUnmounted(() => {
                         placeholder="Longitude"
                         size="sm"
                         class="flex-1"
-                        :ui="{ icon: { trailing: { pointer: '' } } }"
+                        :ui="{ icon: { trailing: { pointer: '' } } } as any"
                       >
                         <template #trailing>
                           <span class="text-xs text-gray-500 dark:text-gray-400">Lng</span>

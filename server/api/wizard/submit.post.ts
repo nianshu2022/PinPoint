@@ -33,7 +33,7 @@ export default eventHandler(async (event) => {
   const db = useDB()
 
   // 1. Handle Admin User
-  const existingUser = db.select().from(tables.users).limit(1).get()
+  const existingUser = await db.select().from(tables.users).limit(1).get()
   if (existingUser) {
     if (existingUser.email === body.admin.email) {
        await db.update(tables.users)

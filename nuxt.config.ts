@@ -25,7 +25,12 @@ export default defineNuxtConfig({
     'nuxt-maplibre',
     'nuxt-og-image',
     'nuxt-gtag',
+    '@nuxthub/core',
   ],
+
+  hub: {
+    database: true,
+  },
 
   css: [
     '@fontsource/rubik/400.css',
@@ -139,6 +144,7 @@ export default defineNuxtConfig({
       },
     },
     session: {
+      password: process.env.NUXT_SESSION_PASSWORD || 'pinpoint_default_local_dev_password_must_be_long_enough',
       maxAge: 60 * 60 * 24 * 7,
       cookie: {
         sameSite: 'lax',
@@ -149,7 +155,8 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    preset: 'node_server',
+    // 默认使用 node_server （适用于 Docker 部署），如果在 Cloudflare 环境部署，可以设置 NITRO_PRESET=cloudflare-pages，或者让 @nuxthub/core 自动推断
+    preset: process.env.NITRO_PRESET || 'node_server',
     experimental: {
       websocket: true,
       tasks: true,

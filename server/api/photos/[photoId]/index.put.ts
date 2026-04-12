@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { z } from 'zod'
-import { exiftool } from 'exiftool-vendored'
 import { eq } from 'drizzle-orm'
 
 import { extractExifData } from '~~/server/services/image/exif'
@@ -202,27 +201,21 @@ export default eventHandler(async (event) => {
   }
 
   const tempDir = await mkdtemp(path.join(tmpdir(), 'cframe-edit-'))
-  const ext = path.extname(photo.storageKey) || '.jpg'
-  const tempFile = path.join(tempDir, `edited${ext}`)
 
   try {
-    await writeFile(tempFile, originalBuffer)
+    // In Edge Serverless, we skip writing EXIF directly into the file buffer using exiftool.
+    // The database remains the source of truth for the updated metadata.
+    const updatedBuffer = originalBuffer
 
-    if (Object.keys(exifUpdates).length > 0) {
-      await exiftool.write(tempFile, exifUpdates, ['-overwrite_original'])
-    }
-
-    const updatedBuffer = await readFile(tempFile)
     const prefix =
       storageProvider.config && 'prefix' in storageProvider.config
         ? storageProvider.config.prefix
         : ''
-    await storageProvider.create(
-      photo.storageKey.replace(prefix || '', ''),
-      updatedBuffer,
-    )
-
-    const exifData = await extractExifData(updatedBuffer)
+    // Skipping uploading unchanged file back, just proceed to DB update
+    
+    // Simulate re-extracting EXIF
+    const baseExifData = await extractExifData(updatedBuffer)
+    const exifData = { ...(baseExifData || {}), ...exifUpdates }
 
     const updateData: Record<string, any> = {
       exif: exifData,

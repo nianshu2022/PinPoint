@@ -9,7 +9,7 @@ export default eventHandler(async () => {
   const db = useDB()
 
   // 查询所有公开设置
-  const allSettings = db
+  const allSettings = await db
     .select()
     .from(tables.settings)
     .where(

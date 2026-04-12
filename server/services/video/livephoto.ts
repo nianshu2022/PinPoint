@@ -1,7 +1,6 @@
 import path from 'path'
 import { eq } from 'drizzle-orm'
-import { getStorageManager } from '~~/server/plugins/3.storage'
-import { transcodeMovToMp4 } from './transcoder'
+import { getStorageManager } from '~~/server/plugins/z3.storage'
 import { logger } from '~~/server/utils/logger'
 
 /**
@@ -53,23 +52,12 @@ export const processLivePhotoVideo = async (
       return false
     }
     
-    // HEVC MOV transcoding to MP4 H.264
+    // Frontend now handles transcoding to MP4 before uploading.
+    // However, if a .MOV somehow gets here (e.g. Safari native upload), 
+    // we simply treat it as the final video key without server transcoding.
     let finalVideoKey = videoKey
     if (finalVideoKey.toLowerCase().endsWith('.mov')) {
-      logger.chrono.info(`Transcoding independent LivePhoto video to mp4: ${finalVideoKey}`)
-      const videoBuffer = await storageProvider.get(finalVideoKey)
-      if (videoBuffer) {
-        try {
-          const mp4Buffer = await transcodeMovToMp4(videoBuffer, logger.chrono)
-          const mp4Key = finalVideoKey.replace(/\.mov$/i, '.mp4')
-          await storageProvider.create(mp4Key, mp4Buffer, 'video/mp4')
-          await storageProvider.delete(finalVideoKey)
-          finalVideoKey = mp4Key
-          logger.chrono.info(`Transcoding finished, new key: ${mp4Key}`)
-        } catch (e) {
-          logger.chrono.error(`Failed to transcode live photo, keeping original:`, e)
-        }
-      }
+      logger.chrono.info(`LivePhoto video uploaded as .mov: ${finalVideoKey}`)
     }
 
     // 获取视频的公共 URL
@@ -113,6 +101,8 @@ export const findLivePhotoVideoForImage = async (
     const possibleVideoKeys = [
       path.join(imageDir, `${imageBaseName}.MOV`).replace(/\\/g, '/'),
       path.join(imageDir, `${imageBaseName}.mov`).replace(/\\/g, '/'),
+      path.join(imageDir, `${imageBaseName}.MP4`).replace(/\\/g, '/'),
+      path.join(imageDir, `${imageBaseName}.mp4`).replace(/\\/g, '/'),
     ]
     
     // 检查存储中是否存在对应的视频文件

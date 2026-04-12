@@ -7,7 +7,7 @@ const _accessDeniedError = createError({
 export default defineOAuthGitHubEventHandler({
   async onSuccess(event, { user }) {
     const db = useDB()
-    const userFromEmail = db
+    const userFromEmail = await db
       .select()
       .from(tables.users)
       .where(eq(tables.users.email, user.email || ''))
@@ -21,7 +21,7 @@ export default defineOAuthGitHubEventHandler({
 
     if (!userFromEmail) {
       // create a new user without admin permission
-      db.insert(tables.users)
+      await db.insert(tables.users)
         .values({
           username: user.name || '',
           email: user.email || '',

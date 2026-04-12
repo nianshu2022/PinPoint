@@ -14,7 +14,7 @@ export default eventHandler(async (event) => {
 
   const db = useDB()
 
-  const album = db
+  const album = await db
     .select()
     .from(tables.albums)
     .where(eq(tables.albums.id, albumId))

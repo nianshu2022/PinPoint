@@ -21,7 +21,13 @@ useHead({
     `${title ? title + ' | ' : ''}${appTitle.value || 'ChronoFrame'}`,
 })
 
-const { data, refresh, status } = useFetch('/api/photos', { query: { limit: 50 } })
+const isFirstLaunch = useSettingRef('system:firstLaunch')
+
+const { data, refresh, status } = useFetch('/api/photos', { 
+  query: { limit: 0 },
+  immediate: isFirstLaunch.value !== true,
+  server: isFirstLaunch.value !== true,
+})
 
 const photosList = ref<Photo[]>([])
 const nextCursor = ref<string | null>(null)

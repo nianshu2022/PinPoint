@@ -298,9 +298,24 @@ export function parseGPSCoordinates(exifData: any): {
     let longitude: number | undefined
 
     // 尝试从GPSLatitude和GPSLongitude获取
-    if (exifData.GPSLatitude && exifData.GPSLongitude) {
-      latitude = parseFloat(exifData.GPSLatitude.toString())
-      longitude = parseFloat(exifData.GPSLongitude.toString())
+    if (exifData.GPSLatitude !== undefined && exifData.GPSLongitude !== undefined) {
+      const parseCoord = (coord: any): number | undefined => {
+        if (Array.isArray(coord)) {
+          if (coord.length >= 3) {
+            return Number(coord[0]) + Number(coord[1]) / 60 + Number(coord[2]) / 3600
+          } else if (coord.length === 2) {
+            return Number(coord[0]) + Number(coord[1]) / 60
+          } else if (coord.length === 1) {
+            return Number(coord[0])
+          }
+        }
+        if (typeof coord === 'number') return coord
+        if (typeof coord === 'string') return parseFloat(coord)
+        return undefined
+      }
+
+      latitude = parseCoord(exifData.GPSLatitude)
+      longitude = parseCoord(exifData.GPSLongitude)
     }
 
     // 如果上面的方法失败，尝试从GPSCoordinates获取

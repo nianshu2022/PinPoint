@@ -2,8 +2,7 @@ import type { ConsolaInstance } from 'consola'
 import path from 'path'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { exiftool } from 'exiftool-vendored'
-import { asc, desc, eq, sql } from 'drizzle-orm'
+import { asc, desc, eq, sql, and } from 'drizzle-orm'
 import type {
   NewPipelineQueueItem,
   PipelineQueueItem,
@@ -22,8 +21,8 @@ import {
 } from '../location/geocoding'
 import { findLivePhotoVideoForImage } from '../video/livephoto'
 import { processMotionPhotoFromXmp } from '../video/motion-photo'
-import { transcodeMovToMp4 } from '../video/transcoder'
-import { getStorageManager } from '~~/server/plugins/3.storage'
+import { ensureH264Mp4 } from '../video/transcode'
+import { getStorageManager } from '~~/server/plugins/z3.storage'
 
 export class QueueManager {
   private static instances: Map<string, QueueManager> = new Map()
@@ -88,15 +87,14 @@ export class QueueManager {
     options?: Partial<NewPipelineQueueItem>,
   ): Promise<number> {
     const db = useDB()
-    const result = db
+    const result = await db
       .insert(tables.pipelineQueue)
       .values({
         payload,
         ...options,
       })
       .returning({ id: tables.pipelineQueue.id })
-      .get()
-    return result.id
+    return result[0].id
   }
 
   /**
@@ -116,7 +114,7 @@ export class QueueManager {
     const chunkSize = 200
     for (let i = 0; i < values.length; i += chunkSize) {
       const chunk = values.slice(i, i + chunkSize)
-      await db.insert(tables.pipelineQueue).values(chunk).run()
+      await db.insert(tables.pipelineQueue).values(chunk)
     }
   }
 
@@ -142,32 +140,35 @@ export class QueueManager {
   async getNextTask(): Promise<PipelineQueueItem | null> {
     const db = useDB()
 
-    // 使用同步事务防止竞态条件
-    const task = db.transaction((tx) => {
-      const highestPriorityPendingTask = tx
-        .select()
-        .from(tables.pipelineQueue)
-        .where(eq(tables.pipelineQueue.status, 'pending'))
-        // 优先处理高优先级和较早创建的任务
-        .orderBy(
-          desc(tables.pipelineQueue.priority),
-          asc(tables.pipelineQueue.createdAt),
+    const pendingTaskRows = await db
+      .select()
+      .from(tables.pipelineQueue)
+      .where(eq(tables.pipelineQueue.status, 'pending'))
+      .orderBy(
+        desc(tables.pipelineQueue.priority),
+        asc(tables.pipelineQueue.createdAt),
+      )
+      .limit(1)
+
+    const pendingTask = pendingTaskRows[0]
+    if (!pendingTask) return null
+
+    const result = await db.update(tables.pipelineQueue)
+      .set({ status: 'in-stages' })
+      .where(
+        and(
+          eq(tables.pipelineQueue.id, pendingTask.id),
+          eq(tables.pipelineQueue.status, 'pending')
         )
-        .limit(1)
-        .get()
+      )
+      .returning()
 
-      if (!highestPriorityPendingTask) return null
+    if (result.length === 0) {
+      // Optimistic concurrency control: another worker snatched it, try again
+      return await this.getNextTask()
+    }
 
-      const task = highestPriorityPendingTask
-      tx.update(tables.pipelineQueue)
-        .set({ status: 'in-stages' })
-        .where(eq(tables.pipelineQueue.id, task.id))
-        .run()
-
-      return { ...task, status: 'in-stages' as const }
-    })
-
-    return task
+    return { ...pendingTask, status: 'in-stages' as const }
   }
 
   /**
@@ -382,24 +383,33 @@ export class QueueManager {
             if (livePhotoVideo) {
               let finalVideoKey = livePhotoVideo.videoKey
               
-              // HEVC MOV transcoding to MP4 H.264
-              if (finalVideoKey.toLowerCase().endsWith('.mov')) {
-                this.logger.info(`[${taskId}:in-stage] transcoding live photo to mp4: ${finalVideoKey}`)
-                const videoBuffer = await storageProvider.get(finalVideoKey)
-                if (videoBuffer) {
-                  try {
-                    const mp4Buffer = await transcodeMovToMp4(videoBuffer, this.logger)
-                    const mp4Key = finalVideoKey.replace(/\.mov$/i, '.mp4')
-                    // Upload the new transcoded mp4 file
-                    await storageProvider.create(mp4Key, mp4Buffer, 'video/mp4')
-                    // Delete old unsupported mov file to free up space
-                    await storageProvider.delete(finalVideoKey)
-                    finalVideoKey = mp4Key
-                    this.logger.info(`[${taskId}:in-stage] transcoding finished, new key: ${mp4Key}`)
-                  } catch (e) {
-                    this.logger.error(`[${taskId}:in-stage] failed to transcode live photo, keeping original:`, e)
+              try {
+                this.logger.info(`[${taskId}:in-stage] fetching raw LivePhoto video from storage: ${finalVideoKey}`)
+                const rawVideoBuffer = await storageProvider.get(finalVideoKey)
+                
+                if (rawVideoBuffer) {
+                  this.logger.info(`[${taskId}:in-stage] Ensuring LivePhoto video is standard H.264...`)
+                  const transcodeResult = await ensureH264Mp4(rawVideoBuffer)
+                  
+                  if (transcodeResult.transcoded) {
+                    this.logger.info(`[${taskId}:in-stage] Successfully transcoded ${transcodeResult.originalCodec} to H.264`)
+                    
+                    // Replace the .mov/.mp4 original key with a pure .mp4 key to store transcoded version
+                    const parsedVideoPath = path.parse(finalVideoKey)
+                    finalVideoKey = path.join(parsedVideoPath.dir, `${parsedVideoPath.name}.mp4`).replace(/\\/g, '/')
+                    
+                    await storageProvider.create(
+                      finalVideoKey,
+                      transcodeResult.buffer,
+                      'video/mp4'
+                    )
+                    this.logger.success(`[${taskId}:in-stage] Transcoded video saved to ${finalVideoKey}`)
+                  } else {
+                    this.logger.info(`[${taskId}:in-stage] LivePhoto video is already ${transcodeResult.originalCodec}, no transcoding needed`)
                   }
                 }
+              } catch (transcodeErr) {
+                this.logger.error(`[${taskId}:in-stage] Error during transcode checking for ${finalVideoKey}`, transcodeErr)
               }
 
               livePhotoInfo = {
@@ -749,13 +759,10 @@ export class QueueManager {
           if (!originalBuffer)
             throw new Error('Failed to download original file')
 
-          const ext = path.extname(photo.storageKey) || '.jpg'
-          const tempFile = path.join(tempDir, `photo${ext}`)
-          await writeFile(tempFile, originalBuffer)
-
-          await exiftool.write(tempFile, updates, ['-overwrite_original'])
-
-          const updatedBuffer = await readFile(tempFile)
+          // In Cloudflare Edge architecture, we skip rewriting the exact EXIF headers into the file bytes.
+          // Native dependencies like exiftool don't work. The database is the source of truth for metadata changes.
+          // The buffer remains unchanged, or we just upload it if we need to freshen it.
+          const updatedBuffer = originalBuffer
 
           const prefix =
             storageProvider.config && 'prefix' in storageProvider.config
@@ -766,10 +773,17 @@ export class QueueManager {
 
           // Re-extract EXIF to update DB with latest metadata
           const exifData = await extractExifData(updatedBuffer)
+          
+          // Apply database side overrides from the previous updates payload
+          const mergedExif = {
+            ...(exifData || {}),
+            ...updates
+          } as any // Bypass strict TS checks on generated ExifTool types vs processExifData NeededExif
+
           await db
             .update(tables.photos)
             .set({
-              exif: exifData,
+              exif: mergedExif,
               fileSize: updatedBuffer.length,
               lastModified: new Date().toISOString(),
             })
@@ -864,7 +878,11 @@ export class QueueManager {
           errorMessage,
         )
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message?.includes('Missing Cloudflare DB binding')) {
+        // Suppress expected race condition logs during server boot before Miniflare is ready
+        return
+      }
       this.logger.error('Error occurred while fetching the next task:', error)
     } finally {
       this.isProcessing = false
