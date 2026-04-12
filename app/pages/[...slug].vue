@@ -19,18 +19,22 @@ const currentPhoto = computed(() =>
   photos.value.find((photo) => photo.id === photoId.value),
 )
 
-defineOgImageComponent('Photo', {
-  headline: currentPhoto.value ? 'PHOTO' : 'PinPoint',
-  title: currentPhoto.value?.title || getSetting('app:title'),
-  description: currentPhoto.value
-    ? currentPhoto.value.description
-    : getSetting('app:title'),
-  thumbnailJpegUrl:
-    currentPhoto.value && currentPhoto.value.thumbnailKey
-      ? `/thumb/${encodeURIComponent(currentPhoto.value.thumbnailUrl || '')}`
-      : undefined,
-  photo: currentPhoto.value || undefined,
-})
+// @ts-ignore
+if (typeof defineOgImageComponent !== 'undefined') {
+  // @ts-ignore
+  defineOgImageComponent('Photo', {
+    headline: currentPhoto.value ? 'PHOTO' : 'PinPoint',
+    title: currentPhoto.value?.title || getSetting('app:title'),
+    description: currentPhoto.value
+      ? currentPhoto.value.description
+      : getSetting('app:title'),
+    thumbnailJpegUrl:
+      currentPhoto.value && currentPhoto.value.thumbnailKey
+        ? `/thumb/${encodeURIComponent(currentPhoto.value.thumbnailUrl || '')}`
+        : undefined,
+    photo: currentPhoto.value || undefined,
+  })
+}
 
 // 处理标签查询参数
 const { clearAllFilters, toggleFilter } = usePhotoFilters()
