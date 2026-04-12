@@ -6,7 +6,7 @@ interface SettingsState {
   data: Record<string, Record<string, SettingValue>>
   isInitialized: boolean
   isLoading: boolean
-  error: Error | null
+  error: string | null
 }
 
 /**
@@ -65,8 +65,8 @@ export const useSettingsStore = defineStore('settings', {
 
         this.data = response.data
         this.isInitialized = true
-      } catch (error) {
-        this.error = error as Error
+      } catch (error: any) {
+        this.error = error?.message || String(error)
         console.error('[Settings] Failed to initialize settings:', error)
         throw error
       } finally {
@@ -120,8 +120,8 @@ export const useSettingsStore = defineStore('settings', {
 
         this.data = response.data
         this.isInitialized = true
-      } catch (error) {
-        this.error = error as Error
+      } catch (error: any) {
+        this.error = error?.message || String(error)
         console.error('[Settings] Failed to refresh settings:', error)
         throw error
       } finally {

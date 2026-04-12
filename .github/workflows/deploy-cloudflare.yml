@@ -158,6 +158,7 @@ jobs:
               echo "  → $SQL_FILE"
               pnpm wrangler d1 execute "${{ env.CF_D1_DATABASE }}" \
                 --remote \
+                -y \
                 --file="$SQL_FILE" \
                 2>&1 | tail -5 \
                 || echo "  ⚠️ May already exist (idempotent), continuing..."
