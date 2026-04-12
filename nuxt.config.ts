@@ -165,35 +165,6 @@ export default defineNuxtConfig({
           cloudflare: {
             nodeCompat: true,
           },
-          // 告知 Nitro：以下 Node.js 内置模块由 Cloudflare 运行时直接提供
-          // 不用 unenv polyfill，避免 @aws-sdk/@smithy CJS→ESM 转换时
-          // 因 'node:buffer' 无 default 导出而报错
-          unenv: {
-            external: [
-              'node:async_hooks',
-              'node:buffer',
-              'node:crypto',
-              'node:events',
-              'node:fs',
-              'node:http',
-              'node:https',
-              'node:net',
-              'node:os',
-              'node:path',
-              'node:process',
-              'node:querystring',
-              'node:stream',
-              'node:string_decoder',
-              'node:url',
-              'node:util',
-              'node:zlib',
-            ],
-            alias: {
-              // CJS 裸模块名映射到 node: 前缀版本（nodejs_compat 提供）
-              'buffer': 'node:buffer',
-              'safer-buffer': 'node:buffer',
-            },
-          },
           // Rollup 虚拟 stub：平台专属原生模块，无法在 Workers 中打包
           rollupConfig: {
             plugins: [
