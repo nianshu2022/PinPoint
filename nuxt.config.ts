@@ -155,8 +155,8 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    // 默认使用 node_server （适用于 Docker 部署），如果在 Cloudflare 环境部署，可以设置 NITRO_PRESET=cloudflare-pages，或者让 @nuxthub/core 自动推断
-    preset: process.env.NITRO_PRESET || 'node_server',
+    // 默认推断环境：如果是 Cloudflare Pages 则为 cloudflare-pages，否则认为是 Docker/Node 部署使用 node_server
+    preset: process.env.NITRO_PRESET || (process.env.CF_PAGES ? 'cloudflare-pages' : 'node_server'),
     experimental: {
       websocket: true,
       tasks: true,
