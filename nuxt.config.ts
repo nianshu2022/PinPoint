@@ -156,26 +156,55 @@ export default defineNuxtConfig({
       websocket: true,
       tasks: true,
     },
-    // Cloudflare 环境：sharp 是 Node.js 原生模块，无法在 Workers 运行时打包
-    // 用 rollup 虚拟模块 stub 替代，让构建通过，运行时图片处理降级为纯 JS 方案
+    // Cloudflare 环境：以下均为 Node.js 原生/平台专属模块，无法在 Workers 运行时打包
+    // 用 rollup 虚拟模块 stub 替代，使构建通过，相关功能在 CF 环境不可用
     ...(process.env.CF_PAGES
       ? {
           rollupConfig: {
             plugins: [
               {
-                name: 'stub-sharp-for-cloudflare',
+                name: 'stub-node-native-for-cloudflare',
                 resolveId(id: string) {
+                  const stubPatterns = [
+                    // 图像处理（sharp 原生模块）
+                    'sharp',
+                    '@img/sharp-wasm32',
+                    '@img/sharp-libvips',
+                    // 系统信息（不适用于 Cloudflare Workers）
+                    'systeminformation',
+                    'osx-temperature-sensor',
+                    // SQLite（使用 Cloudflare D1 替代）
+                    'better-sqlite3',
+                    // FFmpeg（服务器端视频处理，CF 不支持）
+                    'fluent-ffmpeg',
+                    'ffprobe-static',
+                    '@ffmpeg-installer/ffmpeg',
+                    '@ffmpeg-installer/linux-x64',
+                    // 其他可能的原生模块
+                    'fsevents',
+                  ]
                   if (
-                    id === 'sharp' ||
-                    id.startsWith('@img/sharp-wasm32') ||
-                    id.startsWith('@img/sharp-libvips')
+                    stubPatterns.some(
+                      (p) => id === p || id.startsWith(p + '/') || id.startsWith(p + '\\')
+                    )
                   ) {
-                    return `\0stub-sharp:${id}`
+                    return `\0cf-stub:${id}`
                   }
                 },
                 load(id: string) {
-                  if (id.startsWith('\0stub-sharp:')) {
-                    return 'export default {}; export const versions = {}; export const Sharp = function() {};'
+                  if (id.startsWith('\0cf-stub:')) {
+                    return `
+                      const stub = new Proxy({}, {
+                        get: (_, key) => {
+                          if (key === '__esModule') return true;
+                          if (key === 'default') return stub;
+                          return function() { return stub; };
+                        }
+                      });
+                      export default stub;
+                      export const versions = {};
+                      export const Sharp = function() {};
+                    `
                   }
                 },
               },
@@ -183,6 +212,7 @@ export default defineNuxtConfig({
           },
         }
       : {}),
+
   },
 
   vite: {
