@@ -3,180 +3,190 @@
 <div align="center">
   <img src="public/logo.png" width="120" alt="PinPoint Logo" />
   <p>您的自托管照片库，珍藏美好回忆。</p>
-  <p>基于 ChronoFrame 二次开发。</p>
+  <p>基于 <a href="https://github.com/simonno3/chronoframe">ChronoFrame</a> 二次开发的现代化重构版。</p>
 </div>
 
 ## ✨ 简介
 
-**PinPoint** 是一款自托管的个人照片库应用，旨在帮助您组织和展示珍贵的照片回忆。它支持自动提取 EXIF 信息、在交互式地图上展示拍摄位置，并提供美观的瀑布流布局。
+**PinPoint** 是一款支持多端访问、完全自托管的个人回忆照片库。
+不仅具备精美的瀑布流布局，还能自动为您提取照片里的 EXIF（快门、光圈、相机型号等）信息，并在交互式地图上全景展示您的足迹打卡！
 
-> 本项目基于 [ChronoFrame](https://github.com/simonno3/chronoframe) 二次开发。
+### 🚀 核心特性
 
-## 🚀 特性
-
-- **瀑布流布局**：美观且响应式的照片展示
-- **地图视图**：在地图上探索您的照片足迹
-- **EXIF 解析**：自动提取并展示拍摄参数
-- **S3 兼容**：支持各类 S3 兼容对象存储 (AWS, 腾讯云 COS, MinIO 等) 以及本地存储
-- **多端展示**：智能生成缩略图，针对手机等小规模屏幕有针对性适配
-- **动态排版**：完全自托管，数据掌握在自己手中
-
-## ☁️ 部署指南
-
-PinPoint 在架构设计上考虑了多样化的宿主环境，为您提供**两种互不冲突的部署方案**。您可以根据自己的服务器条件选择最适合的一种：
-
-### 方案 A: Cloudflare (基于 NuxtHub) 🌟 推荐
-
-这是 Serverless 时代的最佳实践，将项目部署到 Cloudflare 全球边缘节点上。**免服务器、免维护、速度快，且能充分利用 Cloudflare 的免费额度及 D1 数据库资源。**
-
-#### 操作步骤：通过 GitHub Actions 自动部署
-
-本项目内置了自动化工作流，你只需配置一次即可享受每次 Git Push 的自动发布：
-
-1. **Fork 本代码库** 到你个人的 GitHub 账号下。
-2. 登录 [NuxtHub Admin](https://admin.hub.nuxt.com/)，授权 GitHub 登录，并在面板中关联你刚刚 Fork 的项目，获取唯一的 `Project Key`。
-3. 回到你 Fork 后的 GitHub 仓库，依次点击页面上方的 **Settings -> Secrets and variables -> Actions**。
-4. 点击 **New repository secret**，名称填入 `NUXT_HUB_PROJECT_KEY`，内容填入刚刚获取的 Key。
-5. （可选）如果你需要设置相关的环境变量，也可以在 Cloudflare 或 NuxtHub 后台中设置相应的 Environment Variables（参考下面的[环境变量配置](#-环境变量配置)）。
-6. **大功告成！** 只要你的仓库里有新的代码合并到 `main` 分支，GitHub Actions 就会自动打包并将最新版部署到 Cloudflare 上。
-
-*(注：如果你是开发者，也可以在本地 `clone` 后直接执行 `npx nuxthub deploy` 进行手动命令行发布)*
+- **视觉至上**：美观且响应式的瀑布流展示，针对手机与电脑端专门设计。
+- **地图探索**：接入动态交互地图，轻松回看过去走过的山川湖海。
+- **智能元数据解析**：自动摘取地理时间、设备信息，自动逆向生成物理定位（如“广东省 深圳市”）。
+- **实况兼容**：原生态完美支持苹果 HEIC 高效图片格式，并可激活 `.mov` 展现完美 Live Photos 照片实况！
+- **多端存储引擎**：不仅支持最纯正的服务器本地硬盘存储，更为 Serverless 玩家深度接入 Cloudflare (D1等内置无服务特性)、S3（腾讯云 COS, Minio, AWS）。
 
 ---
 
-### 方案 B: Docker 自托管 (适用于 VPS, NAS 等)
+## ☁️ 部署指南 (详细篇)
 
-如果您拥有自己的云服务器（VPS）或群晖/Nas 这类支持容器架构的设备，可以采用原汁原味的本地部署方案（使用内置 SQLite 和本地存储卷）。
+本系统在设计时充分考虑了不同的玩家群体，从云端白嫖到软路由本地自建，都有专门优化打磨过的流程。请根据您的习惯选择！
 
-考虑到部署极简原则，本项目也准备好了 Docker 端的 Action 预设配置。
+### 🎈 方案 A：Cloudflare Serverless 部署 (最推荐，纯白嫖)
 
-#### 操作流程：使用容器构建发布
+如果您没有自己的服务器，或者不想忍受服务器高昂的带宽费，推荐使用免费且全球分布的 Cloudflare 边缘节点网络。
 
-**方式 1：使用别人打包好的云端镜像（最简单）**
-你可以直接使用 GitHub Container Registry (ghcr.io) 中的镜像启动拉取：
+本仓库配置了利用 `NuxtHub` 发推的自动化 `GitHub Actions`，只需配置一次，后续写了新代码自动更新。
 
-新建一个 `docker-compose.yml`：
+#### 第一步： Fork 仓库
+1. 点击本项目右上角的 **Fork** 按钮，将本仓库克隆到您的个人 GitHub 账号下。
+
+#### 第二步： 获取 NuxtHub 部署密钥
+1. 访问 [NuxtHub Admin](https://admin.hub.nuxt.com/)。
+2. 使用您的 GitHub 账号进行授权登录。
+3. 进入控制台右上方点击 **Add Project** (或 New Project)。
+4. 在仓库列表中，选择您刚刚 Fork 过来的 `PinPoint` 仓库进行关联。
+5. 一旦关联完成，进入项目主页的 **Settings (设置)** 面板，找到 **Project Key** 这一项（一般是一串形如 `nuxthub_xxxx...` 的字符串），把它复制下来。
+
+*(注：NuxtHub 会在部署时，自动为您在 Cloudflare 中创建必需的 D1 数据库，所有数据都存在您的私人账户中，无须您手动敲 SQL 建表)*
+
+#### 第三步： 配置 GitHub 自动工作流
+1. 回到您个人的 GitHub 仓库。
+2. 点击顶部的 **Settings** 选项卡。
+3. 在左侧菜单寻找 **Security** -> **Secrets and variables** -> **Actions**。
+4. 点击绿色的 **New repository secret** 按钮。
+5. **Name (名字)** 必须完全一致填写：`NUXT_HUB_PROJECT_KEY`
+6. **Secret (内容)** 里填入您上一步拷贝粘贴的 Key 字符串。
+7. 点击保存。
+
+现在，您的专属自动化已经接通！为了触发第一次打包，你可以去改一下您项目里任意文件的内容，或者直接通过 GitHub Actions 的界面手动 (`workflow_dispatch`) 点击 **Run workflow** 触发部署 `Deploy to Cloudflare Pages (NuxtHub)` 工作流。部署成功后即可获得 Cloudflare 免费分配的访问域名。
+
+---
+
+### 🐳 方案 B：Docker / 群晖 / NAS 自有私有云部署
+
+如果您有自己的闲置 VPS 服务器、群晖设备或者软路由，并且习惯用 Docker：
+
+#### 第一步：准备必要文件与路径
+
+在您服务器的随便一个目录（例如 `/opt/pinpoint`），新建两个文件：`docker-compose.yml` 和 `.env`。由于涉及到数据库和存储落盘，我们还需要为映射准备一个用于存数据的目录：
+
+```bash
+mkdir -p /opt/pinpoint/data
+cd /opt/pinpoint
+```
+
+#### 第二步：创建 `docker-compose.yml` 配置
+
+在刚才的目录新建 `docker-compose.yml`，并输入以下内容。由于我们已经配置了 GitHub 帮你打包了镜像，您可以直接使用别人造好的轮子：
+
 ```yaml
+version: '3.8'
 services:
   pinpoint:
-    # 替换下面的 [用户名] 为 ghcr.io 上仓库所有者的名字，例如 nianshu2022
+    # 如果镜像拉取慢，可以考虑使用你的私服或其他源
+    # 注意把 `nianshu2022` 换成你对应账号的名字，如果你 Fork 后自行打了 tag 的话。
     image: ghcr.io/nianshu2022/pinpoint:latest
     container_name: pinpoint
     restart: unless-stopped
     ports:
-      - '3000:3000'
+      - "3000:3000"
     volumes:
-      - ./data:/app/data   # 映射数据库（SQLite）和本地照片的持久化储存位置
+      # 我们将容器内的 /app/data 映射到了刚才外面的 ./data
+      # 所有的 SQLite 数据库以及图片原图缩略图都会保存在这里，防止重启丢失！
+      - ./data:/app/data
     env_file:
       - .env
 ```
-随后准备好环境变量文件 `.env`（见下节），执行 `docker-compose up -d` 即可。
 
-**方式 2：自行编译构建镜像**
-如果你克隆了代码到服务器：
-```bash
-docker build -t pinpoint .
-docker run -d --name pinpoint -p 3000:3000 -v $(pwd)/data:/app/data --env-file .env pinpoint
-```
+#### 第三步：编写核心 `.env` 变量配置文件
 
-## ⚙️ 环境变量配置
-
-请在部署环境中（Docker 是 `.env` 文件，Cloudflare 是环境变量面板）提供以下配置值，下面提供的是**最小化配置要求**：
+这是核心！新建 `.env`：
 
 ```bash
-# ------------------ 必需配置 ------------------
-# 会话密码（必须，强烈建议设置 32 位以上随机字符串，用于给 Session 加密）
-NUXT_SESSION_PASSWORD=
+# =========================
+# 必须配置项
+# =========================
 
-# ------------------ 可选配置 ------------------
-# 初代管理员邮箱和账户（首次启动初始化用）
-CFRAME_ADMIN_EMAIL=admin@example.com
+# 数据加密用随机盐，必须设置一个至少 32 位的长字符串
+NUXT_SESSION_PASSWORD=replace_with_a_very_long_secure_random_string_32_chars
+
+# 设置你的管理员原始账号（如果没有设置，进入系统默认账密是 admin@chronoframe.com 和 CF1234@!）
+CFRAME_ADMIN_EMAIL=my_email@qq.com
 CFRAME_ADMIN_NAME=Admin
-CFRAME_ADMIN_PASSWORD=your_password_here
+CFRAME_ADMIN_PASSWORD=my_cool_password
 
-# 地图提供器 (如果希望在地图上显示脚印，需配置以下二者之一)
-# 选项: maplibre / mapbox
-NUXT_PUBLIC_MAP_PROVIDER=maplibre
-NUXT_PUBLIC_MAP_MAPLIBRE_TOKEN=
-NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN=
-# Mapbox 无域名限制令牌（用于逆向地理编码）
-NUXT_MAPBOX_ACCESS_TOKEN=
+# =========================
+# 可选功能：地图（如需展示足迹地图必填）
+# =========================
 
-# 存储提供者（支持 local、s3）缺省为 local
-NUXT_STORAGE_PROVIDER=local
-# 当使用本地存储时：指定挂载存储位置
-NUXT_PROVIDER_LOCAL_PATH=/app/data/storage
+# 使用 Mapbox，去 Mapbox 官网免费注册并获取 Access Token
+NUXT_PUBLIC_MAP_PROVIDER=mapbox
+NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.eYxxxxxxxxxxxxxxxxx
+NUXT_MAPBOX_ACCESS_TOKEN=sk.eYxxxxxxxxxxxxxxxxx  # Reverse Encoder 专用（后端用）
+
+# =========================
+# 可选功能：自定站点信息
+# =========================
+NUXT_PUBLIC_APP_TITLE=我的云端回忆
+NUXT_PUBLIC_APP_SLOGAN=珍藏那一抹光景
 ```
 
-## 📖 使用指南
+#### 第四步：一键启动
 
-### 登录与上传
-
-1. **登录控制台**：配置完毕后，如果未设定 Admin 变量，默认内置了管理员账号（邮箱: `admin@chronoframe.com`, 密码: `CF1234@!`）。请在右侧点击头像进入后台，并尽早修改自己的密码。
-2. **上传照片**：访问仪表板 `/dashboard`。
-3. 在 `Photos` 页面中选择图片点击上传，或直接拖拽文件进区域。
-4. **智能处理**：系统将会自动帮你进行缩略生成、EXIF 提取（相机型号、光圈快门等）并去逆推反向所在地的字符串名！
-
-### 支持的特殊格式
-- 支持常规照片 (JPEG, PNG)。
-- 兼容 Apple 等移动设备的 **HEIC / HEIF** 高效格式。
-- （针对自托管版服务）若搭配传入正确的 `*.mov` 甚至可以触发解析为 Live Photo 实况照片展示！
-
-## 📸 体验截图
-
-![Gallery](./docs/images/screenshot1.png)
-![Photo Detail](./docs/images/screenshot2.png)
-![Map Explore](./docs/images/screenshot3.png)
-![Dashboard](./docs/images/screenshot4.png)
-
-## 🛠️ 开源参与与本地开发
-
-### 环境要求
-
-- Node.js 18+
-- pnpm 10.0+
-
-### 开发准备
+在该目录下执行启动命令拉取镜像：
 
 ```bash
-# 克隆代码
+docker-compose up -d
+```
+启动之后，通过浏览器访问服务器 IP 和对应端口 `http://<服务器IP>:3000` 即可进入专属您的图库世界！
+
+---
+
+## 📖 新手使用流程必读
+
+成功进入页面后，第一步我们需要**上传照片**。
+
+1. 点击网页右侧的**用户头像**登录后台系统。
+2. 登录后通过侧边栏点击进入 **Dashboard (控制面板)**。
+3. 找到 **Photos** 功能页，点击上传按钮。（此时您可以多选图片，甚至可以拖拽文件放入！）
+4. **实况照片(Live Photo) 小贴士**：
+   如果您想保留 iPhone 拍摄的会动的实况照片，请确保上传时，**将对应的 `.heic` 图像文件和 `.mov` 短片段同名一并上传**。（比如 `IMG_8848.heic` 和 `IMG_8848.mov`）。上传后不必惊慌，系统在后台扫描完毕后会自动将两者“配对缝合”，在前端展现出可长按查看动画的震撼效果！
+
+---
+
+## 🛠️ 二次开发与本地构建
+
+对于各位热爱代码的极客开发者：
+
+### 环境前置
+- Node.js 20+
+- 包管理器 `pnpm 10.x+` (强烈禁止使用 npm/yarn 造成依赖锁串台)
+
+### 研发启动步骤
+```bash
 git clone https://github.com/nianshu2022/PinPoint.git
 cd PinPoint
 
-# 安装依赖
+# 安装全部底层依赖（含 C++ 原生构建件处理如 sharp 等）
 pnpm install
 
-# 配置开发环境变量 (如需)
-cp .env.example .env
-
-# 初始化数据库
+# (非必须) 只有当你改了 Drizzle Scheme 设计表结构时
 pnpm db:generate
 
-# 启动！
+# 开启带有热更新的本地调试服务器！
 pnpm dev
 ```
-应用将在 `http://localhost:3000` 呈现。
+此时 `localhost:3000` 就是属于你的代码游乐场！
 
-## ❓ FAQ
+---
 
-<details>
-  <summary>如何创建/重置管理员用户？</summary>
-  <p>首次启动项目时，读取到 <code>CFRAME_ADMIN_EMAIL</code> 和密码就会为你建立核心账户。后期可在此账号内管理更多用户。</p>
-</details>
+## 💬 疑难解答与 FAQ
 
-<details>
-  <summary>目前存储机制是怎样的？</summary>
-  <p>主要支持 S3 与 本地卷（Docker）。如果你使用 Cloudflare 部署并在意边缘流量/用量，可以考虑未来引入基于 C/S 架构的对象存储配置。</p>
-</details>
+**Q1：如何知道我的 Cloudflare 部署好没？我该去哪里看日志？**
+> 答：当你做完 `方案A` 的 GitHub Actions 设置后，你可以点击你 GitHub 仓库上方的 **Actions** 菜单栏，点击进那一项查看每一步日志。里面如果有红字 Error 请认真读取。成功以后，在 NuxtHub 面板也能直观查看到云端资源监控。
 
-<details>
-  <summary>和原本的 ChronoFrame/Afilmory 等有何区别？</summary>
-  <p>它是更加动态轻量化的 Web App，具备直连的动态数据增删改能力；特别针对 Cloudflare 的 D1 SQLite 和 Nuxthub 的无缝迁移做了深层构建处理。而典型的 Afilmory 多用于静态生成流部署方案。</p>
-</details>
+**Q2：地图完全刷不出来，定位一片白？**
+> 答：大概率是未正确配置 `.env` 里的 `NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN` 或者用错了 Provider 名称。去 mapbox.com 注册之后会有一串 `pk.` 开头的序列号。
 
-## 📄 许可证 & 赞赏
+**Q3：我想用非本地的方式，把老早的几万张图片托管出去怎么办？**
+> 答：本应用不仅支持 Local 模式，还在代码底层打通了 S3 的 S3Client。修改 `.env` 的配置项开启 `NUXT_STORAGE_PROVIDER=s3` 即可利用腾讯云对象存储/阿里云 OSS，极大地节省本地硬盘空间，未来还将拓展开放专门的扫描端。
 
-基于 [ChronoFrame](https://github.com/simonno3/chronoframe) 深加工的现代分支版本。
-遵守与保留 [MIT 许可证](LICENSE) 开源。
+## 📄 授权与鸣谢
 
-**Github:** [@nianshu2022](https://github.com/nianshu2022)
+本项目是由底层优秀基石方案 [ChronoFrame](https://github.com/simonno3/chronoframe) 重塑改造而来的衍生态产品，专用于多维度的自动装载兼容与更加云端原生的边缘网络优化体验。采用 [MIT](LICENSE) 原则。
+
+维护者与联络: [@nianshu2022](https://github.com/nianshu2022)
