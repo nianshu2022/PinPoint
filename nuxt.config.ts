@@ -169,6 +169,23 @@ export default defineNuxtConfig({
           rollupConfig: {
             plugins: [
               {
+                // 解决 @aws-sdk/@smithy 等 CommonJS 包按 require('node:buffer') 导入，
+                // 但 CF Workers 视 node:* 为 ESM（无默认导出）引发的 Rollup 打包错误
+                name: 'cf-node-builtins-interop',
+                resolveId(id: string, importer: string | undefined) {
+                  // 如果是 node: 模块，且不是我们自己代理模块发起的导入（防止死循环）
+                  if (id.startsWith('node:') && importer && !importer.startsWith('\0cf-proxy:')) {
+                    return `\0cf-proxy:${id}`
+                  }
+                },
+                load(id: string) {
+                  if (id.startsWith('\0cf-proxy:node:')) {
+                    const actualId = id.slice(10) // 截取 "\0cf-proxy:" 之后的 "node:..."
+                    return `import * as _real from '${actualId}';\nexport * from '${actualId}';\nexport default _real;`
+                  }
+                },
+              },
+              {
                 name: 'stub-node-native-for-cloudflare',
                 resolveId(id: string) {
                   const stubPatterns = [
