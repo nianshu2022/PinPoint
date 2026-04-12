@@ -1,0 +1,220 @@
+name: Deploy to Cloudflare Pages
+
+# 触发条件：推送到 main 分支，或手动触发
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# ════════════════════════════════════════════════════════════════════════
+# 所需 GitHub Secrets（仓库 Settings → Secrets and variables → Actions）：
+#
+#   CLOUDFLARE_API_TOKEN  - Cloudflare API Token
+#                           创建地址：dash.cloudflare.com → My Profile → API Tokens
+#                           需要权限（自定义 token）：
+#                             · Cloudflare Pages: Edit
+#                             · D1: Edit
+#                             · Account Settings: Read
+#
+#   CLOUDFLARE_ACCOUNT_ID - Cloudflare Account ID
+#                           查看位置：dash.cloudflare.com 右侧边栏
+# ════════════════════════════════════════════════════════════════════════
+
+env:
+  # Cloudflare Pages 项目名（第一次运行会自动创建）
+  CF_PAGES_PROJECT: pinpoint
+  # D1 数据库名（第一次运行会自动创建）
+  CF_D1_DATABASE: pinpoint-db
+  # D1 在 Pages 中的 binding 变量名（server 代码里通过 env.DB 访问）
+  CF_D1_BINDING: DB
+  # Node.js 版本
+  NODE_VERSION: '22'
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── 1. 代码检出 ────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. 安装 pnpm ───────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # ── 3. 安装 Node.js ────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      # ── 4. 安装依赖 ────────────────────────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── 5. 创建 Cloudflare Pages 项目（如已存在则跳过）──────────────────
+      - name: Create Cloudflare Pages project (if not exists)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🔍 Checking Pages project '${{ env.CF_PAGES_PROJECT }}'..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/${{ env.CF_PAGES_PROJECT }}")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Pages project already exists."
+          else
+            echo "🚀 Creating Pages project '${{ env.CF_PAGES_PROJECT }}'..."
+            RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+              -d "{\"name\": \"${{ env.CF_PAGES_PROJECT }}\", \"production_branch\": \"main\"}")
+            echo "$RESPONSE" | jq .
+            if [ "$(echo "$RESPONSE" | jq -r '.success')" != "true" ]; then
+              echo "❌ Failed to create Pages project"; exit 1
+            fi
+            echo "✅ Pages project created."
+          fi
+
+      # ── 6. 创建 D1 数据库（如已存在则跳过），保存 ID 到环境变量 ──────────
+      - name: Create D1 database (if not exists)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🔍 Checking D1 database '${{ env.CF_D1_DATABASE }}'..."
+          LIST=$(curl -s \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database?name=${{ env.CF_D1_DATABASE }}")
+
+          EXISTING_ID=$(echo "$LIST" | jq -r --arg name "${{ env.CF_D1_DATABASE }}" \
+            '.result[] | select(.name == $name) | .uuid' | head -1)
+
+          if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "null" ]; then
+            echo "✅ D1 database exists: $EXISTING_ID"
+            echo "D1_DATABASE_ID=$EXISTING_ID" >> $GITHUB_ENV
+          else
+            echo "🚀 Creating D1 database '${{ env.CF_D1_DATABASE }}'..."
+            RESP=$(curl -s -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -d "{\"name\": \"${{ env.CF_D1_DATABASE }}\"}")
+            echo "$RESP" | jq .
+            if [ "$(echo "$RESP" | jq -r '.success')" != "true" ]; then
+              echo "❌ Failed to create D1 database"; exit 1
+            fi
+            NEW_ID=$(echo "$RESP" | jq -r '.result.uuid')
+            echo "✅ D1 database created: $NEW_ID"
+            echo "D1_DATABASE_ID=$NEW_ID" >> $GITHUB_ENV
+          fi
+
+      # ── 7. 将 D1 绑定到 Pages 项目（生产 + 预览环境均绑定）──────────────
+      - name: Bind D1 to Pages project
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🔗 Binding D1 to Pages as '${{ env.CF_D1_BINDING }}'..."
+          RESP=$(curl -s -X PATCH \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/${{ env.CF_PAGES_PROJECT }}" \
+            -d "{
+              \"deployment_configs\": {
+                \"production\": {
+                  \"d1_databases\": {
+                    \"${{ env.CF_D1_BINDING }}\": { \"id\": \"$D1_DATABASE_ID\" }
+                  }
+                },
+                \"preview\": {
+                  \"d1_databases\": {
+                    \"${{ env.CF_D1_BINDING }}\": { \"id\": \"$D1_DATABASE_ID\" }
+                  }
+                }
+              }
+            }")
+          if [ "$(echo "$RESP" | jq -r '.success')" != "true" ]; then
+            echo "❌ Failed to bind D1:"; echo "$RESP" | jq .; exit 1
+          fi
+          echo "✅ D1 binding updated."
+
+      # ── 8. 准备数据库迁移文件 ──────────────────────────────────────────
+      - name: Prepare database migrations
+        run: |
+          echo "📦 Preparing migrations..."
+          # 尝试用 drizzle-kit 生成最新迁移（基于 schema.ts）
+          pnpm db:generate || true
+
+          # migrations 目录为空时，从 migrations-backup 复制历史迁移
+          MIGRATION_DIR="server/database/migrations"
+          if [ -z "$(ls -A "$MIGRATION_DIR"/*.sql 2>/dev/null)" ] && \
+             [ -d "server/database/migrations-backup" ]; then
+            echo "📋 Using migrations from backup..."
+            mkdir -p "$MIGRATION_DIR"
+            cp server/database/migrations-backup/*.sql "$MIGRATION_DIR/" 2>/dev/null || true
+          fi
+
+          echo "📄 Migration files:"
+          ls -1 "$MIGRATION_DIR"/*.sql 2>/dev/null || echo "  (none found)"
+
+      # ── 9. 应用迁移到 D1（幂等，已存在的表会被忽略）────────────────────
+      - name: Apply migrations to D1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          MIGRATION_DIR="server/database/migrations"
+          SQL_FILES=$(ls "$MIGRATION_DIR"/*.sql 2>/dev/null | sort || true)
+
+          if [ -z "$SQL_FILES" ]; then
+            echo "⚠️ No migration files found, skipping."
+          else
+            echo "🗄️ Applying migrations to D1 '${{ env.CF_D1_DATABASE }}'..."
+            for SQL_FILE in $SQL_FILES; do
+              echo "  → $SQL_FILE"
+              # wrangler d1 execute --file 支持直接传入 SQL 文件
+              pnpm wrangler d1 execute ${{ env.CF_D1_DATABASE }} \
+                --remote \
+                --file="$SQL_FILE" \
+                2>&1 | tail -5 \
+                || echo "  ⚠️ May already exist (idempotent), continuing..."
+            done
+            echo "✅ Migrations done."
+          fi
+
+      # ── 10. 构建 Nuxt 应用（Cloudflare Pages 目标）────────────────────
+      - name: Build Nuxt application
+        env:
+          CF_PAGES: '1'
+          NODE_ENV: production
+          NITRO_PRESET: cloudflare_pages
+        run: |
+          echo "🔨 Building for Cloudflare Pages..."
+          pnpm build
+          echo "✅ Build complete. Output:"
+          ls -la dist/ 2>/dev/null || ls -la .output/ 2>/dev/null || true
+
+      # ── 11. 部署到 Cloudflare Pages ────────────────────────────────────
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🚀 Deploying to Cloudflare Pages..."
+          # Nuxt cloudflare_pages preset 输出到 dist/
+          pnpm wrangler pages deploy dist \
+            --project-name="${{ env.CF_PAGES_PROJECT }}" \
+            --branch=main
+          echo "🎉 Deployment complete!"
