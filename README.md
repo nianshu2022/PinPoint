@@ -25,34 +25,25 @@
 
 本系统在设计时充分考虑了不同的玩家群体，从云端白嫖到软路由本地自建，都有专门优化打磨过的流程。请根据您的习惯选择！
 
-### 🎈 方案 A：Cloudflare Serverless 部署 (最推荐，纯白嫖)
+### 🎈 方案 A：Cloudflare Pages 原生部署 (最推荐，纯白嫖)
 
-如果您没有自己的服务器，或者不想忍受服务器高昂的带宽费，推荐使用免费且全球分布的 Cloudflare 边缘节点网络。
-
-本仓库配置了利用 `NuxtHub` 发推的自动化 `GitHub Actions`，只需配置一次，后续写了新代码自动更新。
+由于 NuxtHub Admin 服务近期调整升级，我们现在直接拥抱原生的 Cloudflare Pages 自动部署！这同样能永久享受全球边缘节点和完全免费的 D1 数据库服务，并且**不需要任何繁琐的指令**。
 
 #### 第一步： Fork 仓库
 1. 点击本项目右上角的 **Fork** 按钮，将本仓库克隆到您的个人 GitHub 账号下。
 
-#### 第二步： 获取 NuxtHub 部署密钥 (完全免费)
-1. 访问 [NuxtHub Admin](https://admin.hub.nuxt.com/)。
-2. 使用您的 GitHub 账号进行授权登录（**请放心，个人的 Hobby 额度是永久免费的，其背后的 Cloudflare D1 等服务对个人照片库而言拥有近乎用不完的免费量**）。
-3. 进入控制台右上方点击 **Add Project** (或 New Project)。
-4. 在仓库列表中，选择您刚刚 Fork 过来的 `PinPoint` 仓库进行关联。
-5. 一旦关联完成，进入项目主页的 **Settings (设置)** 面板，找到 **Project Key** 这一项（一般是一串形如 `nuxthub_xxxx...` 的字符串），把它复制下来。
+#### 第二步： 在 Cloudflare 关联部署 (全自动)
+1. 访问 [Cloudflare 控制台](https://dash.cloudflare.com/) 并登录您的账号。
+2. 在左侧导航栏找到 **Workers & Pages (Workers 和 Pages)**。
+3. 点击 **Create (创建)**，在弹出的页面顶部切换到 **Pages** 选项卡。
+4. 点击 **Connect to Git (连接到 Git)**，授权您的 GitHub，然后选择刚才 Fork 下来的 `PinPoint` 仓库。
+5. 在 **Set up builds and deployments (构建和部署设置)** 环节：
+   - **Framework preset (框架预设)**: 选择 **Nuxt.js**。
+   - **Build command (构建命令)**: 填入 `pnpm run build`。
+   - **Build output directory (构建输出目录)**: 保持默认即可，通常在选择框架后系统会自动配置好。
+6. 点击 **Save and Deploy (保存并部署)**。
 
-*(注：NuxtHub 会在部署时，自动为您在 Cloudflare 中创建必需的 D1 数据库，所有数据都存在您的私人账户中，无须您手动敲 SQL 建表)*
-
-#### 第三步： 配置 GitHub 自动工作流
-1. 回到您个人的 GitHub 仓库。
-2. 点击顶部的 **Settings** 选项卡。
-3. 在左侧菜单寻找 **Security** -> **Secrets and variables** -> **Actions**。
-4. 点击绿色的 **New repository secret** 按钮。
-5. **Name (名字)** 必须完全一致填写：`NUXT_HUB_PROJECT_KEY`
-6. **Secret (内容)** 里填入您上一步拷贝粘贴的 Key 字符串。
-7. 点击保存。
-
-现在，您的专属自动化已经接通！为了触发第一次打包，你可以去改一下您项目里任意文件的内容，或者直接通过 GitHub Actions 的界面手动 (`workflow_dispatch`) 点击 **Run workflow** 触发部署 `Deploy to Cloudflare Pages (NuxtHub)` 工作流。部署成功后即可获得 Cloudflare 免费分配的访问域名。
+*（注：在点击部署的瞬间，隐藏在底层的 `@nuxthub/core` 核心会自动帮您在 Cloudflare 云端创建一个 D1 数据库并连接好一切资源，全程无需你动手写一句 SQL！）*
 
 ---
 
@@ -177,7 +168,7 @@ pnpm dev
 ## 💬 疑难解答与 FAQ
 
 **Q1：如何知道我的 Cloudflare 部署好没？我该去哪里看日志？**
-> 答：当你做完 `方案A` 的 GitHub Actions 设置后，你可以点击你 GitHub 仓库上方的 **Actions** 菜单栏，点击进那一项查看每一步日志。里面如果有红字 Error 请认真读取。成功以后，在 NuxtHub 面板也能直观查看到云端资源监控。
+> 答：当你按照 `方案A` 在 Cloudflare 控制台连接 Git 并点击部署后，Cloudflare Dashboard 会实时显示编译终端。未来更新了代码，你可以直接在 Cloudflare 面板中的你的 Pages 项目里查看最近的一次部署日志。如果是红字请在控制台排查错误。
 
 **Q2：地图完全刷不出来，定位一片白？**
 > 答：大概率是未正确配置 `.env` 里的 `NUXT_PUBLIC_MAPBOX_ACCESS_TOKEN` 或者用错了 Provider 名称。去 mapbox.com 注册之后会有一串 `pk.` 开头的序列号。
