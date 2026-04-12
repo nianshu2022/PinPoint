@@ -158,14 +158,43 @@ export default defineNuxtConfig({
       websocket: true,
       tasks: true,
     },
-    // Cloudflare 环境：以下均为 Node.js 原生/平台专属模块，无法在 Workers 运行时打包
-    // 用 rollup 虚拟模块 stub 替代，使构建通过，相关功能在 CF 环境不可用
+    // Cloudflare 专属配置：仅在 CF_PAGES 构建时生效
     ...(process.env.CF_PAGES
       ? {
-          // 开启 nodejs_compat 兼容标志，允许使用 node:crypto 等 Node.js 内置模块
+          // 开启 nodejs_compat 兼容标志，使 Workers 支持 node:crypto 等内置模块
           cloudflare: {
             nodeCompat: true,
           },
+          // 告知 Nitro：以下 Node.js 内置模块由 Cloudflare 运行时直接提供
+          // 不用 unenv polyfill，避免 @aws-sdk/@smithy CJS→ESM 转换时
+          // 因 'node:buffer' 无 default 导出而报错
+          unenv: {
+            external: [
+              'node:async_hooks',
+              'node:buffer',
+              'node:crypto',
+              'node:events',
+              'node:fs',
+              'node:http',
+              'node:https',
+              'node:net',
+              'node:os',
+              'node:path',
+              'node:process',
+              'node:querystring',
+              'node:stream',
+              'node:string_decoder',
+              'node:url',
+              'node:util',
+              'node:zlib',
+            ],
+            alias: {
+              // CJS 裸模块名映射到 node: 前缀版本（nodejs_compat 提供）
+              'buffer': 'node:buffer',
+              'safer-buffer': 'node:buffer',
+            },
+          },
+          // Rollup 虚拟 stub：平台专属原生模块，无法在 Workers 中打包
           rollupConfig: {
             plugins: [
               {
@@ -179,16 +208,16 @@ export default defineNuxtConfig({
                     // 系统信息（不适用于 Cloudflare Workers）
                     'systeminformation',
                     'osx-temperature-sensor',
-                    // SQLite（使用 Cloudflare D1 替代）
+                    // SQLite（CF 使用 D1 替代）
                     'better-sqlite3',
                     // 服务端 FFmpeg（CF 不支持原生二进制）
                     'fluent-ffmpeg',
                     'ffprobe-static',
                     '@ffmpeg-installer/ffmpeg',
                     '@ffmpeg-installer/linux-x64',
-                    // HEIC/图像格式处理（含 WASM，CF 不支持）
+                    // HEIC 解码（含 WASM）
                     'heic-to',
-                    // OG Image 渲染依赖（即使禁用了模块，防止间接引入）
+                    // OG Image 渲染（WASM，即使模块已禁用也防止间接引入）
                     '@resvg/resvg-js',
                     'resvg-js',
                     'yoga-wasm-web',
@@ -224,7 +253,6 @@ export default defineNuxtConfig({
           },
         }
       : {}),
-
   },
 
   vite: {
