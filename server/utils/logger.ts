@@ -3,12 +3,19 @@ import path from 'path'
 import type { LogObject } from 'consola'
 import { createConsola } from 'consola'
 
-const logDir = path.join(process.cwd(), 'data', 'logs')
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true })
-}
+let logFilePath = ''
+let isFsSupported = false
 
-const logFilePath = path.join(logDir, 'app.log')
+try {
+  const logDir = path.join(process.cwd(), 'data', 'logs')
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true })
+  }
+  logFilePath = path.join(logDir, 'app.log')
+  isFsSupported = true
+} catch (e) {
+  // Ignored in non-Node environments like Cloudflare Workers
+}
 
 // Safe JSON stringify that handles circular references
 const safeStringify = (obj: any, space?: number): string => {
@@ -89,7 +96,9 @@ const mConsola = createConsola({
   },
 })
 
-mConsola.addReporter(logFileReporter)
+if (isFsSupported) {
+  mConsola.addReporter(logFileReporter)
+}
 
 export const logger = {
   chrono: mConsola.withTag('cframe/main'),
