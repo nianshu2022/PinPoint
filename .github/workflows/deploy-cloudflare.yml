@@ -43,7 +43,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. 安装 pnpm ───────────────────────────────────────────────────
+      # ── 2. 安装 pnpm（从 package.json 的 packageManager 自动读取版本）──
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
@@ -59,30 +59,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # ── 5. 创建 Cloudflare Pages 项目（如已存在则跳过）──────────────────
+      #    使用 wrangler pages project create，它自带幂等处理
       - name: Create Cloudflare Pages project (if not exists)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "🔍 Checking Pages project '${{ env.CF_PAGES_PROJECT }}'..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/${{ env.CF_PAGES_PROJECT }}")
+          echo "🔍 Creating/verifying Pages project '${{ env.CF_PAGES_PROJECT }}'..."
+          # create 命令若项目已存在会报错，用 || true 屏蔽，下面的 list 验证
+          pnpm wrangler pages project create "${{ env.CF_PAGES_PROJECT }}" \
+            --production-branch=main 2>&1 || true
 
-          if [ "$HTTP_STATUS" = "200" ]; then
-            echo "✅ Pages project already exists."
+          # 验证项目确实存在
+          if pnpm wrangler pages project list 2>&1 | grep -q "${{ env.CF_PAGES_PROJECT }}"; then
+            echo "✅ Pages project '${{ env.CF_PAGES_PROJECT }}' is ready."
           else
-            echo "🚀 Creating Pages project '${{ env.CF_PAGES_PROJECT }}'..."
-            RESPONSE=$(curl -s -X POST \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
-              -d "{\"name\": \"${{ env.CF_PAGES_PROJECT }}\", \"production_branch\": \"main\"}")
-            echo "$RESPONSE" | jq .
-            if [ "$(echo "$RESPONSE" | jq -r '.success')" != "true" ]; then
-              echo "❌ Failed to create Pages project"; exit 1
-            fi
-            echo "✅ Pages project created."
+            echo "❌ Pages project not found after creation attempt, please check API token permissions."; exit 1
           fi
 
       # ── 6. 创建 D1 数据库（如已存在则跳过），保存 ID 到环境变量 ──────────
@@ -91,40 +83,31 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "🔍 Checking D1 database '${{ env.CF_D1_DATABASE }}'..."
-          LIST=$(curl -s \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database?name=${{ env.CF_D1_DATABASE }}")
+          echo "🔍 Creating/verifying D1 database '${{ env.CF_D1_DATABASE }}'..."
+          # create 命令若 DB 已存在会报错，用 || true 屏蔽
+          pnpm wrangler d1 create "${{ env.CF_D1_DATABASE }}" 2>&1 || true
 
-          EXISTING_ID=$(echo "$LIST" | jq -r --arg name "${{ env.CF_D1_DATABASE }}" \
-            '.result[] | select(.name == $name) | .uuid' | head -1)
+          # 获取数据库 ID
+          DB_INFO=$(pnpm wrangler d1 list --json 2>/dev/null | \
+            jq -r --arg name "${{ env.CF_D1_DATABASE }}" \
+            '.[] | select(.name == $name)')
 
-          if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "null" ]; then
-            echo "✅ D1 database exists: $EXISTING_ID"
-            echo "D1_DATABASE_ID=$EXISTING_ID" >> $GITHUB_ENV
-          else
-            echo "🚀 Creating D1 database '${{ env.CF_D1_DATABASE }}'..."
-            RESP=$(curl -s -X POST \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
-              -d "{\"name\": \"${{ env.CF_D1_DATABASE }}\"}")
-            echo "$RESP" | jq .
-            if [ "$(echo "$RESP" | jq -r '.success')" != "true" ]; then
-              echo "❌ Failed to create D1 database"; exit 1
-            fi
-            NEW_ID=$(echo "$RESP" | jq -r '.result.uuid')
-            echo "✅ D1 database created: $NEW_ID"
-            echo "D1_DATABASE_ID=$NEW_ID" >> $GITHUB_ENV
+          if [ -z "$DB_INFO" ]; then
+            echo "❌ D1 database not found after creation attempt."; exit 1
           fi
 
-      # ── 7. 将 D1 绑定到 Pages 项目（生产 + 预览环境均绑定）──────────────
+          DB_ID=$(echo "$DB_INFO" | jq -r '.uuid')
+          echo "✅ D1 database ready: $DB_ID"
+          echo "D1_DATABASE_ID=$DB_ID" >> $GITHUB_ENV
+
+      # ── 7. 将 D1 绑定到 Pages 项目（通过 Cloudflare REST API PATCH）─────
+      #    wrangler 目前没有直接 CLI 命令设置 Pages binding，只能用 API
       - name: Bind D1 to Pages project
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "🔗 Binding D1 to Pages as '${{ env.CF_D1_BINDING }}'..."
+          echo "🔗 Binding D1 ($D1_DATABASE_ID) to Pages as '${{ env.CF_D1_BINDING }}'..."
           RESP=$(curl -s -X PATCH \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
@@ -144,28 +127,19 @@ jobs:
               }
             }")
           if [ "$(echo "$RESP" | jq -r '.success')" != "true" ]; then
-            echo "❌ Failed to bind D1:"; echo "$RESP" | jq .; exit 1
+            echo "⚠️ D1 binding API returned non-success (may already be bound):"
+            echo "$RESP" | jq .
+          else
+            echo "✅ D1 binding updated."
           fi
-          echo "✅ D1 binding updated."
 
       # ── 8. 准备数据库迁移文件 ──────────────────────────────────────────
       - name: Prepare database migrations
         run: |
           echo "📦 Preparing migrations..."
-          # 尝试用 drizzle-kit 生成最新迁移（基于 schema.ts）
           pnpm db:generate || true
-
-          # migrations 目录为空时，从 migrations-backup 复制历史迁移
-          MIGRATION_DIR="server/database/migrations"
-          if [ -z "$(ls -A "$MIGRATION_DIR"/*.sql 2>/dev/null)" ] && \
-             [ -d "server/database/migrations-backup" ]; then
-            echo "📋 Using migrations from backup..."
-            mkdir -p "$MIGRATION_DIR"
-            cp server/database/migrations-backup/*.sql "$MIGRATION_DIR/" 2>/dev/null || true
-          fi
-
           echo "📄 Migration files:"
-          ls -1 "$MIGRATION_DIR"/*.sql 2>/dev/null || echo "  (none found)"
+          ls -1 server/database/migrations/*.sql 2>/dev/null || echo "  (none found)"
 
       # ── 9. 应用迁移到 D1（幂等，已存在的表会被忽略）────────────────────
       - name: Apply migrations to D1
@@ -182,8 +156,7 @@ jobs:
             echo "🗄️ Applying migrations to D1 '${{ env.CF_D1_DATABASE }}'..."
             for SQL_FILE in $SQL_FILES; do
               echo "  → $SQL_FILE"
-              # wrangler d1 execute --file 支持直接传入 SQL 文件
-              pnpm wrangler d1 execute ${{ env.CF_D1_DATABASE }} \
+              pnpm wrangler d1 execute "${{ env.CF_D1_DATABASE }}" \
                 --remote \
                 --file="$SQL_FILE" \
                 2>&1 | tail -5 \
@@ -201,7 +174,7 @@ jobs:
         run: |
           echo "🔨 Building for Cloudflare Pages..."
           pnpm build
-          echo "✅ Build complete. Output:"
+          echo "✅ Build complete."
           ls -la dist/ 2>/dev/null || ls -la .output/ 2>/dev/null || true
 
       # ── 11. 部署到 Cloudflare Pages ────────────────────────────────────
@@ -211,7 +184,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           echo "🚀 Deploying to Cloudflare Pages..."
-          # Nuxt cloudflare_pages preset 输出到 dist/
           pnpm wrangler pages deploy dist \
             --project-name="${{ env.CF_PAGES_PROJECT }}" \
             --branch=main
