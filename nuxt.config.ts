@@ -2,6 +2,11 @@ import pkg from './package.json'
 import tailwindcss from '@tailwindcss/vite'
 import type { AnalyticsConfig } from './shared/types/config'
 
+// 强制修复 Cloudflare Pages 环境自动注入连字符格式 preset 导致 NuxtHub 强校验报错的问题
+if (process.env.NITRO_PRESET === 'cloudflare-pages' || process.env.CF_PAGES) {
+  process.env.NITRO_PRESET = 'cloudflare_pages'
+}
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -25,6 +30,12 @@ export default defineNuxtConfig({
     'nuxt-maplibre',
     'nuxt-og-image',
     'nuxt-gtag',
+    (_options: any, nuxt: any) => {
+      // 强制兼容 Nuxt 4 拦截篡改 preset 导致 NuxtHub 校验崩溃的问题
+      if (nuxt.options.nitro && nuxt.options.nitro.preset === 'cloudflare-pages') {
+        nuxt.options.nitro.preset = 'cloudflare_pages'
+      }
+    },
     ...(process.env.CF_PAGES || process.env.NODE_ENV !== 'production' ? ['@nuxthub/core'] : []),
   ],
 
