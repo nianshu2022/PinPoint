@@ -165,26 +165,43 @@ export default defineNuxtConfig({
           cloudflare: {
             nodeCompat: true,
           },
-          // Rollup 虚拟 stub：平台专属原生模块，无法在 Workers 中打包
-          rollupConfig: {
-            plugins: [
-              {
+          hooks: {
+            'rollup:before'(nitro: any, rollupConfig: any) {
+              rollupConfig.plugins = rollupConfig.plugins || []
+              if (!Array.isArray(rollupConfig.plugins)) {
+                rollupConfig.plugins = [rollupConfig.plugins]
+              }
+              rollupConfig.plugins.unshift({
                 // 解决 @aws-sdk/@smithy 等 CommonJS 包按 require('node:buffer') 导入，
-                // 但 CF Workers 视 node:* 为 ESM（无默认导出）引发的 Rollup 打包错误
+                // 但 CF Workers 视 node:* 为 ESM（无默认导出）引发的 Rollup 打包错误，放到最前以规避 commonjs 插件的劫持
                 name: 'cf-node-builtins-interop',
                 resolveId(id: string, importer: string | undefined) {
-                  // 如果是 node: 模块，且不是我们自己代理模块发起的导入（防止死循环）
-                  if (id.startsWith('node:') && importer && !importer.startsWith('\0cf-proxy:')) {
-                    return `\0cf-proxy:${id}`
+                  const cleanedId = id.startsWith('\0') ? id.slice(1) : id
+                  if (cleanedId.startsWith('node:') && importer && !importer.startsWith('\0cf-proxy:') && !id.includes('?commonjs-external')) {
+                    const bareId = cleanedId.split('?')[0]
+                    return `\0cf-proxy:${bareId}`
                   }
                 },
                 load(id: string) {
+                  // 直接接管 rollup-plugin-commonjs 注入的虚拟代理模块
+                  if (id.includes('?commonjs-external') && id.includes('node:')) {
+                    const match = id.match(/(node:[^?]+)/)
+                    if (match) {
+                      const actualId = match[1]
+                      return `import * as _real from '${actualId}';\nexport * from '${actualId}';\nexport default _real;`
+                    }
+                  }
                   if (id.startsWith('\0cf-proxy:node:')) {
-                    const actualId = id.slice(10) // 截取 "\0cf-proxy:" 之后的 "node:..."
+                    const actualId = id.slice(10)
                     return `import * as _real from '${actualId}';\nexport * from '${actualId}';\nexport default _real;`
                   }
                 },
-              },
+              })
+            }
+          },
+          // Rollup 虚拟 stub：平台专属原生模块，无法在 Workers 中打包
+          rollupConfig: {
+            plugins: [
               {
                 name: 'stub-node-native-for-cloudflare',
                 resolveId(id: string) {
