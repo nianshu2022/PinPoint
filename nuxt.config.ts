@@ -156,6 +156,33 @@ export default defineNuxtConfig({
       websocket: true,
       tasks: true,
     },
+    // Cloudflare 环境：sharp 是 Node.js 原生模块，无法在 Workers 运行时打包
+    // 用 rollup 虚拟模块 stub 替代，让构建通过，运行时图片处理降级为纯 JS 方案
+    ...(process.env.CF_PAGES
+      ? {
+          rollupConfig: {
+            plugins: [
+              {
+                name: 'stub-sharp-for-cloudflare',
+                resolveId(id: string) {
+                  if (
+                    id === 'sharp' ||
+                    id.startsWith('@img/sharp-wasm32') ||
+                    id.startsWith('@img/sharp-libvips')
+                  ) {
+                    return `\0stub-sharp:${id}`
+                  }
+                },
+                load(id: string) {
+                  if (id.startsWith('\0stub-sharp:')) {
+                    return 'export default {}; export const versions = {}; export const Sharp = function() {};'
+                  }
+                },
+              },
+            ],
+          },
+        }
+      : {}),
   },
 
   vite: {
