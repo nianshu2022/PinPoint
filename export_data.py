@@ -6,9 +6,13 @@ def export_db(db_file, out_file):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Get all tables
+    # Get all tables except sensitive ones
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__drizzle_migrations'")
     tables = [row['name'] for row in cursor.fetchall()]
+    
+    # Exclude tables storing secret keys to pass GitHub Push Protection
+    sensitive_tables = ['settings', 'settings_storage_providers']
+    tables = [t for t in tables if t not in sensitive_tables]
     
     with open(out_file, 'w', encoding='utf-8') as f:
         # Avoid foreign key constraint issues during import

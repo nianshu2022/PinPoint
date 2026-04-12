@@ -48,6 +48,15 @@ export default eventHandler(async () => {
     grouped[setting.namespace][setting.key] = value
   }
 
+  if (!grouped['system']) {
+    grouped['system'] = {}
+  }
+  
+  if (grouped['system']['firstLaunch'] === undefined) {
+    const user = await db.select().from(tables.users).limit(1).get()
+    grouped['system']['firstLaunch'] = !user
+  }
+
   return {
     timestamp: Date.now(),
     data: grouped,
