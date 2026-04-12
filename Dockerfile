@@ -20,6 +20,7 @@ COPY --from=deps /usr/src/app/node_modules ./node_modules
 COPY --from=deps /usr/src/app/packages/webgl-image/node_modules ./packages/webgl-image/node_modules
 COPY . .
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build:deps
+ENV NITRO_PRESET=node_server
 RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm run build
 
 FROM node:22-alpine AS runtime

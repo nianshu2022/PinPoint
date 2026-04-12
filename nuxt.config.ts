@@ -155,8 +155,6 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    // 默认推断环境：如果是 Cloudflare Pages 则为 cloudflare-pages，否则认为是 Docker/Node 部署使用 node_server
-    preset: process.env.NITRO_PRESET || (process.env.CF_PAGES ? 'cloudflare-pages' : 'node_server'),
     experimental: {
       websocket: true,
       tasks: true,
